@@ -1,0 +1,22 @@
+.env
+backend/.env
+__pycache__/
+*.pyc
+.pytest_cache/
+instance/
+backend/instance/
+*.db
+node_modules/
+dist/
+
+# Local / generated
+venv/
+.venv/
+logs/
+*.log
+.coverage
+htmlcov/
+coverage.xml
+
+# Optional: legacy Node tree (delete locally if present; not part of FastAPI stack)
+# backend/

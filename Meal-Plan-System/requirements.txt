@@ -1,0 +1,3 @@
+# Convenience: installs the Meal Plan API dependencies.
+# Canonical file: backend/requirements.txt
+-r backend/requirements.txt

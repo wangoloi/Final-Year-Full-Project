@@ -1,0 +1,77 @@
+# Integrated GlucoSense (portal + clinical API) + Meal Plan (API + SPA)
+#
+# Usage (from this folder):
+#   copy .env.deploy.example .env.deploy
+#   # Edit .env.deploy — set JWT_SECRET and GLUCOSENSE_EMBED_KEY for anything beyond local demo
+#   docker compose --env-file .env.deploy up --build
+#
+# URLs (host browser):
+#   GlucoSense:     http://localhost:8080
+#   Meal Plan UI:   http://localhost:8082
+#   Meal Plan API:  http://localhost:8081  (SSO + direct API)
+#
+# VITE_* URLs are baked into the GlucoSense image at build time — they must match how users reach the services.
+
+services:
+  meal-api:
+    build:
+      context: ./Meal-Plan-System
+      dockerfile: Dockerfile.api
+    ports:
+      - "8081:8001"
+    environment:
+      PORT: "8001"
+      DATABASE_URL: sqlite:////data/glocusense.db
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-change-me-min-32-chars-for-production}
+      GLUCOSENSE_EMBED_KEY: ${GLUCOSENSE_EMBED_KEY:-dev-embed-local-only}
+      CORS_EXTRA_ORIGINS: ${CORS_EXTRA_ORIGINS:-}
+    volumes:
+      - meal_api_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  meal-web:
+    build:
+      context: ./Meal-Plan-System
+      dockerfile: Dockerfile.web
+      args:
+        VITE_ALLOWED_GLUCOSENSE_ORIGINS: ${PUBLIC_GLUCOSENSE_URL:-http://localhost:8080}
+    ports:
+      - "8082:80"
+    depends_on:
+      meal-api:
+        condition: service_healthy
+
+  glucosense:
+    build:
+      context: ./Glucosense/Glucosense
+      dockerfile: Dockerfile
+      args:
+        VITE_MEAL_PLAN_URL: ${PUBLIC_MEAL_WEB_URL:-http://localhost:8082}
+        VITE_MEAL_PLAN_API_URL: ${PUBLIC_MEAL_API_URL:-http://localhost:8081}
+        VITE_MEAL_PLAN_EMBED_SECRET: ${GLUCOSENSE_EMBED_KEY:-dev-embed-local-only}
+    ports:
+      - "8080:8000"
+    environment:
+      GLUCOSENSE_API_KEY: ${GLUCOSENSE_API_KEY:-}
+    volumes:
+      - glucosense_outputs:/app/outputs
+    depends_on:
+      meal-api:
+        condition: service_healthy
+      meal-web:
+        condition: service_started
+
+volumes:
+  meal_api_data:
+  glucosense_outputs:

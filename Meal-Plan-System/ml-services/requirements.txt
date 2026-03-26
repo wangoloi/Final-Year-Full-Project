@@ -1,0 +1,26 @@
+# Smart Diabetes Nutrition - ML Services
+# Python 3.10+
+
+# Embeddings & Vector DB
+sentence-transformers>=2.2.2
+faiss-cpu>=1.7.4
+numpy>=1.24.0
+
+# ML & Recommendation
+scikit-learn>=1.3.0
+joblib>=1.3.0
+pandas>=2.0.0
+
+# Database & API
+psycopg2-binary>=2.9.9
+redis>=5.0.0
+flask>=3.0.0
+gunicorn>=21.0.0
+
+# LLM & RAG (optional)
+langchain>=0.1.0
+langchain-openai>=0.0.2
+openai>=1.0.0
+
+# Utilities
+python-dotenv>=1.0.0

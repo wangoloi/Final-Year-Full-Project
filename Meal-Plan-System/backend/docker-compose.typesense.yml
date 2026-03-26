@@ -1,0 +1,23 @@
+# Run Typesense next to the Meal Plan API (dev).
+# Usage (from this folder):
+#   docker compose -f docker-compose.typesense.yml up -d
+# Then set in backend/.env:
+#   TYPESENSE_HOST=localhost
+#   TYPESENSE_API_KEY=xyz
+# Restart the API so food seed + index sync runs (or wait for background seed + sync).
+
+services:
+  typesense:
+    image: typesense/typesense:26.0
+    restart: on-failure
+    ports:
+      - "8108:8108"
+    volumes:
+      - typesense-data:/data
+    environment:
+      TYPESENSE_DATA_DIR: /data
+      TYPESENSE_API_KEY: xyz
+      TYPESENSE_ENABLE_CORS: "true"
+
+volumes:
+  typesense-data:

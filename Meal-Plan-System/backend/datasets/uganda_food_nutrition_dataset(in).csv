@@ -1,0 +1,198 @@
+food_name,local_name,category,calories,carbohydrates,protein,fat,fiber,glycemic_index,serving_size,description,diabetes_friendly
+Apple,Apuro,fruits,52,13.8,0.3,0.2,2.4,36,1 medium (182g),Crisp fruit with soluble fiber that slows glucose absorption,TRUE
+Matooke (Steamed Green Banana),Matooke,staple,120,31,1.3,0.4,2.6,45,1 cup cooked (150g),Ugandan staple food rich in resistant starch and fiber,TRUE
+Posho (Maize Meal),Posho,staple,360,77,8.5,1.7,2.4,70,1 cup cooked (240g),Maize flour staple with high carbohydrate content,FALSE
+Cassava,Muwogo,tubers,160,38,1.4,0.3,1.8,46,1 cup boiled (200g),"Root tuber high in carbohydrates, moderate GI when boiled",TRUE
+Sweet Potatoes,Lumonde,tubers,90,21,2,0.1,3.3,61,1 medium (130g),Nutritious root vegetable rich in fiber and beta carotene,TRUE
+Irish Potatoes,Akamonde akazungu,tubers,77,17,2,0.1,2.2,78,1 medium (173g),Common starchy vegetable with high GI if mashed,FALSE
+Rice (White),Omuceere,grains,130,28,2.7,0.3,0.4,73,1 cup cooked (158g),Refined grain that raises blood glucose quickly,FALSE
+Brown Rice,Omuceere,grains,112,23,2.6,0.9,1.8,50,1 cup cooked (195g),Whole grain rice with more fiber and slower glucose rise,TRUE
+Millet Bread,Kalo,grains,360,70,11,4.2,8,54,1 slice (30g),Whole millet bread with higher fiber than wheat bread,TRUE
+Sorghum Bread,Omuweba,grains,339,72,11,3.3,6.7,62,1 slice (30g),Traditional grain bread rich in minerals,TRUE
+Chapati,Chapati,grains,297,46,8,9,2.7,52,1 piece (68g),Flatbread often fried in oil; moderate glycemic impact,FALSE
+Beans,Ebijanjaalo,legumes,347,63,21.6,1.2,15.2,29,1 cup cooked (177g),High fiber and protein legume that stabilizes blood sugar,TRUE
+Cowpeas,Kawo,legumes,336,60,23.5,1.3,10.6,33,1 cup cooked (170g),Protein-rich legume commonly eaten in Uganda,TRUE
+Soybeans,Soya,legumes,446,30,36,20,9.3,16,1 cup cooked (172g),Very high protein legume with beneficial fats,TRUE
+Groundnuts (Peanuts),Ebinyebwa,legumes,567,16,26,49,8.5,14,1 oz (28g),Energy dense nuts rich in healthy fats and protein,TRUE
+Groundnut Sauce,Eva ze'binyebwa,protein_dishes,300,10,13,24,3.5,15,2 tbsp,Peanut-based sauce commonly served with matooke,TRUE
+Tilapia,Engege,fish,128,0,26,2.7,0,0,100g,Lean freshwater fish rich in protein,TRUE
+Silver Fish,Mukene,fish,92,0,20,1.3,0,0,100g,Small dried fish rich in calcium and protein,TRUE
+Chicken,Enkoko,protein,165,0,31,3.6,0,0,100g,Lean meat providing high-quality protein,TRUE
+Eggs,Amagi,protein,155,1.1,13,11,0,0,2 eggs (100g),Complete protein containing essential amino acids,TRUE
+Avocado,Ovakado,fruits,160,8.5,2,15,6.7,10,1/2 fruit (70g),Healthy fats and fiber that support glucose control,TRUE
+Mango,Muyembe,fruits,60,15,0.8,0.4,1.6,51,1 cup (165g),Sweet tropical fruit rich in vitamin C,TRUE
+Papaya/Pawpaw,Epapali,fruits,43,11,0.5,0.3,1.7,59,1 cup (140g),Digestive fruit with moderate glycemic effect,TRUE
+Banana (Ripe),Kivuvu,fruits,89,23,1.1,0.3,2.6,51,1 medium (118g),Sweet fruit that should be eaten in moderation,TRUE
+Pineapple,Nanansi,fruits,50,13,0.5,0.1,1.4,59,1 cup (165g),Tropical fruit containing digestive enzymes,TRUE
+Watermelon,watermelon,fruits,30,7.6,0.6,0.2,0.4,72,1 cup (152g),Hydrating fruit but relatively high glycemic index,FALSE
+Guava,Amapela,fruits,68,14,2.6,1,5.4,24,1 fruit,Very low GI fruit rich in vitamin C and fiber,TRUE
+Passion Fruit,Obutunda,fruits,97,23,2.2,0.7,10.4,30,1 cup pulp,High fiber fruit that moderates glucose rise,TRUE
+Cabbage,Kabage,vegetables,25,5.8,1.3,0.1,2.5,10,1 cup shredded,Low calorie vegetable rich in vitamin C,TRUE
+Tomatoes,Enyanya,vegetables,18,3.9,0.9,0.2,1.2,15,1 medium,Rich in lycopene and antioxidants,TRUE
+Onions,Obutungulu,vegetables,40,9.3,1.1,0.1,1.7,15,1 medium,Flavorful vegetable with antioxidants,TRUE
+Carrots,Karoti,vegetables,41,9.6,0.9,0.2,2.8,39,1 medium,Rich in beta carotene and fiber,TRUE
+Cucumber,cukaba,vegetables,15,3.6,0.7,0.1,0.5,15,1 cup sliced,Hydrating low calorie vegetable,TRUE
+Pumpkin,Ensujju,vegetables,26,6.5,1,0.1,0.5,75,1 cup cooked,Nutritious squash rich in vitamin A,TRUE
+Okra,Okra,vegetables,33,7.5,1.9,0.2,3.2,20,1 cup,High soluble fiber helpful for glucose control,TRUE
+Amaranth Leaves,Doodo,vegetables,23,4.3,2.5,0.3,2.2,15,1 cup cooked,Popular leafy vegetable rich in iron,TRUE
+African Eggplant,Nakati,vegetables,25,6,1,0.2,3.1,15,1 cup,Traditional Ugandan vegetable used in stews,TRUE
+Collard Greens,Sukuma Wiki,vegetables,32,6,3,0.6,2.7,10,1 cup cooked,Leafy green vegetable high in vitamins,TRUE
+African Nightshade,Entula/Nakati greens,vegetables,25,5,2,0.3,2.5,15,1 cup cooked,Traditional leafy vegetable rich in micronutrients,TRUE
+Malakwang,Sour Leaves,vegetables,28,6,2.5,0.4,2.9,15,1 cup cooked,Northern Uganda vegetable with tangy flavor,TRUE
+Sesame Seeds,Simsim,seeds,573,23,18,50,11.8,35,1 oz (28g),"Seeds rich in healthy fats, calcium and protein",TRUE
+Yogurt,Yogati,dairy,59,3.6,10.2,0.7,0,11,1 cup,Protein rich fermented dairy with probiotics,TRUE
+Milk (Low Fat),Amata,dairy,50,5,3.4,1.9,0,30,1 cup,Provides calcium and protein,TRUE
+Water,Amazzi,beverages,0,0,0,0,0,0,1 cup (240ml),Essential hydration with zero calories,TRUE
+Green Tea,Chayi ya green,beverages,2,0.5,0.2,0,0,0,1 cup,Antioxidant rich beverage without sugar,TRUE
+
+Oranges,Machungwa,fruits,47,12,0.9,0.1,2.4,42,1 medium (131g),Citrus fruit rich in vitamin C and fiber,TRUE
+Lemons,Nimu,fruits,29,9,1.1,0.3,2.8,20,1 fruit (58g),Low-sugar citrus with high vitamin C,TRUE
+Limes,Nimu ndogo,fruits,30,11,0.7,0.2,2.8,20,1 fruit (67g),Tangy citrus used in drinks and cooking,TRUE
+Jackfruit,Fene,fruits,95,24,1.7,0.6,1.5,75,1 cup (165g),Large tropical fruit; ripe flesh is sweet,FALSE
+Star Fruit,Njuyu,fruits,31,7,1,0.3,2.8,45,1 medium (91g),Tropical fruit with mild sweet-tart flavor,TRUE
+Tamarind,Tamarindi,fruits,239,63,2.8,0.6,5.1,23,1 cup pulp,High fiber fruit used in sauces and drinks,TRUE
+Dates,Tende,fruits,282,75,2.5,0.4,8,103,1/4 cup (38g),Dried fruit high in natural sugar; eat in moderation,FALSE
+Pomegranate,Nkomamawanga,fruits,83,19,1.7,1.2,4,40,1/2 cup arils,Antioxidant-rich fruit with seeds,TRUE
+Grapefruit,Grapefruit,fruits,52,13,0.9,0.2,2,25,1/2 fruit (123g),Low-GI citrus good for blood sugar control,TRUE
+Cantaloupe,Ntunta,fruits,34,8,0.8,0.2,0.9,65,1 cup diced,Low-calorie melon with moderate GI,TRUE
+Honeydew Melon,Ntunta,fruits,36,9,0.5,0.1,0.8,65,1 cup diced,Sweet melon with good hydration,TRUE
+Coconut (Fresh),Nasi,fruits,354,15,3.3,33,9,45,1 cup shredded,High in healthy fats; moderate portions for diabetes,TRUE
+Tangerine,Machungwa,fruits,53,14,0.8,0.3,1.8,42,1 medium (88g),Sweet citrus similar to orange,TRUE
+Grapes,Mizabibu,fruits,69,18,0.7,0.2,0.9,59,1 cup (151g),Sweet fruit; eat in moderation for diabetes,TRUE
+Strawberries,Tunda,fruits,32,8,0.7,0.3,2,40,1 cup (152g),Low-sugar berry rich in vitamin C,TRUE
+Papaya (Green),Epapali,fruits,43,11,0.5,0.3,1.7,59,1 cup (140g),Unripe papaya used in salads,TRUE
+Rambutan,Nganda,fruits,82,20,0.9,0.2,0.9,55,5 fruits (90g),Tropical hairy fruit with sweet flesh,TRUE
+Soursop,Muyembe,fruits,66,17,1,0.3,3.3,32,1 cup (225g),Creamy tropical fruit with fiber,TRUE
+Lychee,Lichee,fruits,66,17,0.8,0.4,1.3,50,10 fruits (100g),Sweet tropical fruit; eat in moderation,TRUE
+
+Spinach,Eboo/Doodo,vegetables,23,4,3,0.4,2.2,15,1 cup cooked,Leafy green rich in iron and minerals,TRUE
+Kale,Sukuma,vegetables,35,4,2.9,1.5,4.1,15,1 cup chopped,Nutrient-dense leafy green high in vitamins,TRUE
+Broccoli,Broccoli,vegetables,34,7,2.8,0.4,2.6,15,1 cup chopped,Cruciferous vegetable with fiber and vitamins,TRUE
+Cauliflower,Cauliflower,vegetables,25,5,2,0.3,2.5,15,1 cup chopped,Low-carb alternative to starchy sides,TRUE
+Green Beans,Bicoori,vegetables,31,7,1.8,0.1,2.7,15,1 cup cooked,Fiber-rich vegetable with low GI,TRUE
+Peas (Green),Bijo,vegetables,84,16,5.4,0.2,5.5,48,1 cup cooked,Starchy vegetable; moderate portions for diabetes,TRUE
+Bell Peppers,Pilipili hoho,vegetables,20,5,1,0.2,1.7,15,1 medium,Colorful vegetable rich in vitamin C,TRUE
+Eggplant,Biringanya,vegetables,25,6,1,0.2,3,15,1 cup cubed,Low-calorie vegetable used in stews,TRUE
+Lettuce,Lettuce,vegetables,5,1,0.5,0.1,0.5,15,1 cup shredded,Low-calorie salad base,TRUE
+Beetroot,Bitrooti,vegetables,43,10,1.6,0.2,2.8,64,1/2 cup cooked,Root vegetable; moderate GI,TRUE
+Radish,Mbili,vegetables,16,3,0.7,0.1,1.6,15,1 cup sliced,Crisp low-carb vegetable,TRUE
+Mushrooms,Obugga,vegetables,15,2,2.2,0.2,0.7,15,1 cup sliced,Low-carb mushroom with umami flavor,TRUE
+Bitter Leaf,Ettobe,vegetables,42,7,4.5,0.3,1.9,15,1 cup cooked,Traditional leafy vegetable with mild bitterness,TRUE
+Jute Mallow,Molokhiya,vegetables,34,6,3,0.6,2.7,15,1 cup cooked,Slimy leafy green used in soups,TRUE
+Amaranth Leaves,Doodo,vegetables,23,4,2.5,0.3,2.2,15,1 cup cooked,Popular leafy vegetable rich in iron,TRUE
+Garden Egg,Nakati,vegetables,25,6,1,0.2,3.1,15,1 cup,African eggplant variety,TRUE
+Bamboo Shoots,Bamboo,vegetables,27,5,2.6,0.3,2.2,20,1 cup,Crunchy vegetable used in Asian cooking,TRUE
+Asparagus,Asparagus,vegetables,20,4,2.2,0.1,2.1,15,1 cup,Low-carb vegetable with fiber,TRUE
+Zucchini,Zucchini,vegetables,17,3,1.2,0.3,1,15,1 cup sliced,Low-carb summer squash,TRUE
+
+Turkey Breast,Enkoko,protein,135,0,30,1,0,0,100g,Lean poultry lower in fat than chicken,TRUE
+Duck,Duck,protein,211,0,19,15,0,0,100g,Rich poultry; remove skin for diabetes,TRUE
+Quail,Quail,protein,158,0,22,7,0,0,100g,Small game bird with lean meat,TRUE
+Chicken Thigh,Enkoko,protein,209,0,26,11,0,0,100g,Dark meat with more flavor; moderate portions,TRUE
+Chicken Breast,Enkoko,protein,165,0,31,3.6,0,0,100g,Lean meat providing high-quality protein,TRUE
+Guinea Fowl,Enkoko,protein,158,0,28,4,0,0,100g,Lean game bird similar to chicken,TRUE
+Chicken Gizzard,Enkoko,protein,94,0,18,2,0,0,100g,Lean organ meat with protein,TRUE
+
+Beef (Lean Steak),Nyama,protein,271,0,26,18,0,0,100g,Lean beef cuts for diabetes; trim fat,TRUE
+Beef Stew,Nyama,protein,220,0,28,12,0,0,100g,Slow-cooked beef with vegetables,TRUE
+Ground Beef,Nyama,protein,250,0,26,15,0,0,100g,Minced beef; choose lean for diabetes,TRUE
+Beef Liver,Nyama,protein,135,4,20,4,0,0,100g,Organ meat rich in iron and B vitamins,TRUE
+Beef Ribs,Nyama,protein,320,0,22,26,0,0,100g,Higher fat cut; eat sparingly,FALSE
+Goat Meat,Nyama,protein,143,0,27,3,0,0,100g,Lean red meat common in Uganda,TRUE
+Pork (Lean),Nguruwe,protein,143,0,27,3.5,0,0,100g,Lean pork loin; trim visible fat,TRUE
+
+Oatmeal,Porridge,grains,150,27,5,3,4,55,1 cup cooked,Whole grain porridge with soluble fiber,TRUE
+Maize Porridge,Posho porridge,grains,90,19,2,1,0.1,70,1 cup cooked,Traditional Ugandan breakfast porridge,FALSE
+Millet Porridge,Kalo porridge,grains,119,23,3.5,1,2,54,1 cup cooked,Whole grain porridge with fiber,TRUE
+Sorghum Porridge,Sorghum,grains,110,24,3,1,2,62,1 cup cooked,Traditional grain porridge,TRUE
+Wheat Porridge,Porridge,grains,92,19,2.5,0.5,0.3,50,1 cup cooked,Hot cereal from wheat,TRUE
+Rice Porridge,Porridge,grains,65,14,1,0.1,0.2,78,1 cup cooked,Soft rice porridge; high GI,FALSE
+Quinoa,Quinoa,grains,120,21,4,2,2.8,53,1 cup cooked,Complete protein grain with low GI,TRUE
+Barley,Barley,grains,123,28,2.3,0.4,3.8,28,1 cup cooked,Whole grain with very low GI,TRUE
+Buckwheat,Buckwheat,grains,92,20,3.4,0.6,2.7,54,1 cup cooked,Gluten-free grain alternative,TRUE
+Bulgur,Bulgur,grains,83,19,3,0.2,4.5,48,1 cup cooked,Cracked wheat with fiber,TRUE
+Couscous,Couscous,grains,112,23,3.8,0.2,1.4,65,1 cup cooked,Semolina grain; moderate portions,TRUE
+Wheat Flour,Atta,grains,364,76,10,1,2.7,85,1 cup,Refined flour; prefer whole grain,FALSE
+Whole Wheat Flour,Atta,grains,340,72,14,2,11,50,1 cup,Whole grain flour for baking,TRUE
+Cornmeal,Posho flour,grains,370,79,7,3,2.4,70,1 cup,Maize flour for posho and porridge,FALSE
+Millet Flour,Kalo flour,grains,378,73,11,4,8,54,1 cup,Whole millet for traditional bread,TRUE
+Sorghum Flour,Sorghum,grains,339,74,11,3,6.7,62,1 cup,Traditional grain flour,TRUE
+
+Yam,Ntula,tubers,118,28,1.5,0.2,4.1,54,1 cup cooked,Starchy tuber with moderate GI,TRUE
+Plantain (Green),Gonja,tubers,122,32,1.3,0.4,2.3,40,1 medium (179g),Unripe plantain; lower GI than ripe,TRUE
+Plantain (Ripe),Gonja,tubers,122,32,1.3,0.4,2.3,55,1 medium (179g),Ripe plantain; moderate portions for diabetes,TRUE
+Taro (Cocoyam),Amateke,tubers,112,27,0.5,0.3,4.1,54,1 cup cooked,Starchy root tuber common in Uganda,TRUE
+Arrowroot,Arrowroot,tubers,65,14,0.8,0.1,1.3,14,1 cup cooked,Very low GI starch; easy to digest,TRUE
+Tapioca,Tapioca,tubers,358,89,0.2,0,0.9,70,1 cup cooked,Pure starch from cassava; high GI,FALSE
+Cassava Flour,Muwogo flour,tubers,357,88,1.4,0.3,1.8,46,1 cup,Dried cassava for baking and fufu,TRUE
+Breadfruit,Breadfruit,tubers,103,27,1.1,0.2,4.9,68,1 cup cooked,Tropical starchy fruit; moderate GI,TRUE
+Taro Leaves,Amateke,vegetables,42,7,4,0.7,3.9,15,1 cup cooked,Edible leafy vegetable from taro plant,TRUE
+
+Lentils,Bijo,legumes,116,20,9,0.4,7.9,29,1 cup cooked,High fiber legume excellent for diabetes,TRUE
+Pigeon Peas,Mbaazi,legumes,139,25,8,0.8,6.9,22,1 cup cooked,Popular legume in East Africa,TRUE
+Black Beans,Ebijanjaalo,legumes,132,24,7.6,0.5,6.9,30,1 cup cooked,High fiber bean with low GI,TRUE
+Green Gram,Green gram,legumes,106,19,7,0.4,7.6,38,1 cup cooked,Mung bean; low GI legume,TRUE
+Chickpeas,Chickpeas,legumes,164,27,8.9,2.6,7.6,28,1 cup cooked,High fiber legume for hummus and stews,TRUE
+Peas (Split),Bijo,legumes,118,21,8,0.4,8.3,32,1 cup cooked,Dried split peas for soups,TRUE
+
+Olive Oil,Mafuta ya zeituni,oils_fats,119,0,0,14,0,0,1 tbsp (14g),Heart-healthy monounsaturated fat for cooking,TRUE
+Sunflower Oil,Mafuta,oils_fats,120,0,0,14,0,0,1 tbsp (14g),Common cooking oil; use in moderation,TRUE
+Sesame Oil,Mafuta ya simsim,oils_fats,120,0,0,14,0,0,1 tbsp (14g),Nutty oil rich in antioxidants,TRUE
+Coconut Oil,Mafuta ya nasi,oils_fats,121,0,0,13.5,0,0,1 tbsp (14g),Saturated fat; use sparingly for diabetes,TRUE
+Palm Oil,Mafuta ya mchikichi,oils_fats,120,0,0,14,0,0,1 tbsp (14g),Traditional cooking oil in East Africa; use in moderation,TRUE
+Avocado Oil,Mafuta ya ovakado,oils_fats,124,0,0,14,0,0,1 tbsp (14g),Monounsaturated fat; good for blood sugar,TRUE
+Butter,Siagi,oils_fats,102,0,0.1,11.5,0,0,1 tbsp (14g),Dairy fat; use sparingly for diabetes,TRUE
+Ghee,Siagi safi,oils_fats,112,0,0,13,0,0,1 tbsp (14g),Clarified butter; lactose-free cooking fat,TRUE
+Groundnut Oil,Mafuta ya binyebwa,oils_fats,120,0,0,14,0,0,1 tbsp (14g),Peanut oil commonly used in Ugandan cooking,TRUE
+
+Sardines,Sardines,mineral_rich,208,0,25,11,0,0,100g,Fish rich in calcium iron and omega-3,TRUE
+Pumpkin Seeds,Bugobe,mineral_rich,559,18,30,49,6,15,1 oz (28g),Seeds high in zinc magnesium and iron,TRUE
+Sunflower Seeds,Njugu,mineral_rich,584,20,21,52,8.6,20,1 oz (28g),Seeds rich in vitamin E and selenium,TRUE
+Molasses,Sukari nyeusi,mineral_rich,290,75,0,0,0,55,1 tbsp (20g),Mineral-dense sweetener; use sparingly,FALSE
+Prunes,Dried Plums,mineral_rich,240,64,2,0.4,7,29,1/2 cup (87g),Dried fruit high in iron and potassium,TRUE
+Dried Figs,Tini,mineral_rich,249,64,3,1,9.8,61,1/2 cup (75g),Calcium and iron rich dried fruit; moderate portions,TRUE
+Seaweed,Nori,mineral_rich,43,7,3,0.5,0.5,0,1 sheet,Iodine and mineral rich; used in soups,TRUE
+Blackstrap Molasses,Molasses,mineral_rich,235,60,0,0,0,55,1 tbsp (20g),Concentrated source of iron and calcium,FALSE
+Almonds,Njugu,mineral_rich,579,22,21,50,12.5,0,1 oz (28g),Nuts rich in calcium magnesium and vitamin E,TRUE
+Dark Leafy Greens Mix,Doodo mix,mineral_rich,25,4,2.5,0.4,2.5,15,1 cup cooked,Iron and calcium rich leafy vegetables,TRUE
+
+Oat Bran,Oat bran,fiber_rich,88,24,7,2,5.7,55,1/2 cup cooked,Concentrated soluble fiber for glucose control,TRUE
+Wheat Bran,Bran,fiber_rich,63,19,4.5,1.3,12.5,30,1/2 cup,Insoluble fiber for digestive health,TRUE
+Flax Seeds,Linseed,fiber_rich,534,29,18,42,27,0,1 oz (28g),Very high fiber seed; grind for absorption,TRUE
+Chia Seeds,Chia,fiber_rich,486,42,17,31,34,0,1 oz (28g),Super high fiber seed; forms gel in liquid,TRUE
+Psyllium Husk,Psyllium,fiber_rich,30,7,0,0,6,0,1 tbsp (10g),Pure soluble fiber supplement,TRUE
+Wheat Germ,Germ,fiber_rich,366,51,27,11,15,25,1/4 cup,Nutrient and fiber rich part of wheat,TRUE
+Artichoke,Artichoke,fiber_rich,47,11,3.3,0.2,5.4,15,1 medium,Vegetable with very high fiber content,TRUE
+Raspberries,Tunda,fiber_rich,64,15,1.5,0.8,8,32,1 cup (123g),Berry with high fiber and low sugar,TRUE
+Blackberries,Tunda,fiber_rich,62,14,2,0.7,7.6,25,1 cup (144g),High fiber berry good for diabetes,TRUE
+
+Celery,Kere,water_rich,14,3,0.7,0.2,1.6,15,1 cup chopped,Very hydrating low-calorie vegetable,TRUE
+Coconut Water,Maji ya nasi,water_rich,46,9,1.7,0.4,2.6,55,1 cup (240ml),Natural electrolyte drink; moderate sugar,TRUE
+Iceberg Lettuce,Lettuce,water_rich,10,2,0.7,0.1,1,15,1 cup shredded,High water content salad base,TRUE
+Radish (Fresh),Mbili,water_rich,16,3,0.7,0.1,1.6,15,1 cup sliced,Crisp hydrating root vegetable,TRUE
+Cantaloupe (Fresh),Ntunta,water_rich,34,8,0.8,0.2,0.9,65,1 cup diced,Water-rich melon; moderate portions,TRUE
+Strawberries (Fresh),Tunda,water_rich,32,8,0.7,0.3,2,40,1 cup (152g),Water-rich berry with fiber,TRUE
+Zucchini (Raw),Zucchini,water_rich,17,3,1.2,0.3,1,15,1 cup sliced,Summer squash with high water content,TRUE
+Cucumber (Fresh),Cukaba,water_rich,8,2,0.3,0.1,0.3,15,1 cup sliced,Over 95% water; minimal calories,TRUE
+Tomato (Raw),Enyanya,water_rich,18,4,0.9,0.2,1.2,15,1 medium,Water-rich fruit-vegetable,TRUE
+Bell Pepper (Raw),Pilipili hoho,water_rich,20,5,1,0.2,1.7,15,1 medium,Colorful hydrating vegetable,TRUE
+
+Cottage Cheese,Cheese,dairy,98,3.4,11,4.3,0,30,1/2 cup (113g),High protein low-carb dairy option,TRUE
+Fermented Milk (Mala),Mala,dairy,60,4.5,3.2,2.5,0,15,1 cup,Traditional fermented milk with probiotics,TRUE
+Sour Cream,Sour cream,dairy,23,0.8,0.4,2.1,0,0,2 tbsp,High fat; use sparingly for diabetes,TRUE
+Cheddar Cheese,Cheese,dairy,113,0.4,7,9.3,0,0,1 oz (28g),Calcium-rich; moderate portions for diabetes,TRUE
+Feta Cheese,Cheese,dairy,75,1.2,4,6.3,0,0,1 oz (28g),Tangy cheese; lower fat than many cheeses,TRUE
+Plain Kefir,Kefir,dairy,41,4.5,3.3,1,0,36,1 cup,Fermented milk drink with probiotics,TRUE
+Whey Protein,Protein,dairy,120,3,24,1.5,0,0,1 scoop (30g),Concentrated protein from milk,TRUE
+Labneh,Yogurt cheese,dairy,80,4,5,5,0,15,2 tbsp (30g),Strained yogurt; thick and protein-rich,TRUE
+
+Black Tea,Chayi,beverages,2,0.5,0.1,0,0,0,1 cup,Antioxidant tea without sugar,TRUE
+Herbal Tea,Chayi ya miti,beverages,0,0,0,0,0,0,1 cup,Caffeine-free herbal infusion,TRUE
+Coffee,Kahawa,beverages,2,0,0.3,0,0,0,1 cup black,Zero-calorie when unsweetened,TRUE
+Ginger Tea,Chayi ya tangawizi,beverages,2,0.4,0,0,0,0,1 cup,Digestive tea; anti-inflammatory,TRUE
+Hibiscus Tea,Chayi ya waragi,beverages,2,0.5,0.1,0,0,0,1 cup,Tart herbal tea; may support blood pressure,TRUE
+Unsweetened Almond Milk,Maziwa,beverages,30,1,1,2.5,0.5,25,1 cup,Low-carb dairy alternative beverage,TRUE
+Coconut Milk (Canned),Maziwa ya nasi,beverages,445,6,4.5,48,0,41,1 cup,High fat; use in small amounts,FALSE
+Lemon Water,Maji ya limau,beverages,4,1,0,0,0,0,1 cup,Hydrating drink with vitamin C,TRUE
+Sparkling Water,Maji,beverages,0,0,0,0,0,0,1 cup,Carbonated water; zero calories,TRUE
+Bone Broth,Muto,beverages,31,0,6,0.5,0,0,1 cup,Mineral-rich broth; good for hydration,TRUE

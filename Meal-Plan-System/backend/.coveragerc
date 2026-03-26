@@ -1,0 +1,14 @@
+# Run from repo root:  cd backend && coverage run -m pytest
+# Or:  coverage run --rcfile=backend/.coveragerc -m pytest (with cwd/backend on path — prefer running from backend)
+[run]
+source = api
+omit =
+    */tests/*
+    */__pycache__/*
+
+[report]
+fail_under = 0
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError

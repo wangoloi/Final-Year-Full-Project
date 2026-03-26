@@ -1,0 +1,45 @@
+# Deploy / secrets
+.env.deploy
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ML / pipeline artifacts (regenerate with scripts)
+**/outputs/
+**/model_bundle/*.joblib
+**/model_bundle/shap_background.npy
+
+# Coverage
+.coverage
+htmlcov/
+
+# Logs
+*.log

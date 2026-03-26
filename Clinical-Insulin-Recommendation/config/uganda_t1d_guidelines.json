@@ -1,0 +1,78 @@
+{
+  "_comment": "Uganda Clinical Guideline 2023 - Management of Type 1 Diabetes. Source: Uganda Health Ministry.",
+  "source": "Uganda Clinical Guideline 2023",
+  "daily_insulin_dose": {
+    "iu_per_kg_min": 0.6,
+    "iu_per_kg_max": 1.5,
+    "children_under_5_iu_per_kg": 0.5,
+    "children_under_5_age_years": 5,
+    "children_under_5_note": "Start with 0.5 IU/kg/day and refer to paediatrician"
+  },
+  "insulin_types": [
+    {
+      "id": "short_acting_regular",
+      "name": "Regular soluble (e.g. Actrapid)",
+      "protocol": "3 times daily, 30 minutes before meals",
+      "timing_minutes_before_meal": 30,
+      "onset_minutes": 30,
+      "peak_hours": "2-5",
+      "duration_hours": "5-8"
+    },
+    {
+      "id": "rapid_acting_aspart",
+      "name": "Insulin Aspart",
+      "protocol": "3 times daily, 10-15 minutes before meals",
+      "timing_minutes_before_meal": 15,
+      "onset_minutes": 15,
+      "peak_minutes": 45,
+      "duration_hours": "3-5"
+    },
+    {
+      "id": "intermediate_nph",
+      "name": "Intermediate acting NPH (e.g. Insulatard)",
+      "protocol": "Once or twice daily (evening ± morning)",
+      "frequency": "1-2",
+      "onset_hours": "1-3",
+      "peak_hours": "6-12",
+      "duration_hours": "16-24"
+    },
+    {
+      "id": "biphasic_mixtard",
+      "name": "Biphasic (e.g. Mixtard 30/70)",
+      "protocol": "Once or twice daily, 30 minutes before meals",
+      "timing_minutes_before_meal": 30,
+      "onset_hours": 2,
+      "peak_hours": "2-12",
+      "duration_hours": "16-24"
+    }
+  ],
+  "regimens": {
+    "basal_bolus": {
+      "recommended": true,
+      "description": "Pre-meals short acting (Actrapid) or rapid acting (Aspart) + evening intermediate (Insulatard) or long acting (Glargine)",
+      "basal_portion": {
+        "evening": "40-50%",
+        "evening_min_fraction": 0.4,
+        "evening_max_fraction": 0.5
+      },
+      "bolus_portion": "50-60%"
+    },
+    "premixed_twice_daily": {
+      "description": "Twice daily premixed Mixtard or Biphasic Aspart",
+      "morning_fraction": "2/3",
+      "morning_fraction_value": 0.667,
+      "evening_fraction": "1/3",
+      "evening_fraction_value": 0.333,
+      "timing_mixtard": "30 minutes before meals",
+      "timing_aspart": "10-15 minutes before meals"
+    }
+  },
+  "rule_based_rules": {
+    "use_iu_per_kg_range": true,
+    "cap_daily_dose_by_weight": true,
+    "children_under_5_refer": true,
+    "prefer_basal_bolus": true,
+    "premixed_morning_ratio": 0.667,
+    "premixed_evening_ratio": 0.333
+  }
+}

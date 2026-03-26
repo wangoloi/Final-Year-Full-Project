@@ -1,0 +1,6 @@
+# Optional: Streamlit dashboard (scripts/pipeline/run_dashboard.py).
+# From repo root:  pip install -r scripts/pipeline/requirements-dashboard.txt
+-r ../../requirements.txt
+streamlit>=1.28.0
+plotly>=5.18.0
+pyarrow>=14.0.0

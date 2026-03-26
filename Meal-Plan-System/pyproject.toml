@@ -1,0 +1,9 @@
+# Repo-level Python tooling (FastAPI code lives in backend/).
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+addopts = ["-v", "--tb=short"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::sqlalchemy.exc.SADeprecationWarning",
+]

@@ -1,0 +1,107 @@
+{
+  "_comment": "GlucoSense clinical thresholds. Source: Uganda Clinical Guideline 2023, ADA, CDS Safety Engine. Single source of truth for validation and recommendation logic.",
+  "age": {
+    "min": 0,
+    "max": 100
+  },
+  "glucose_mgdl": {
+    "min": 20,
+    "max": 600,
+    "hypo_alert": 70,
+    "level2_hypo_max": 53,
+    "level1_hypo_min": 54,
+    "level1_hypo_max": 69,
+    "low_normal_min": 70,
+    "low_normal_max": 90,
+    "target_min": 90,
+    "target_max": 130,
+    "cds_target_min": 70,
+    "cds_target_max": 180,
+    "mild_hyper_min": 131,
+    "mild_hyper_max": 180,
+    "moderate_high_min": 181,
+    "moderate_high_max": 250,
+    "severe_high_min": 251,
+    "low_for_dose_reduction": 80
+  },
+  "bmi": {
+    "min": 12,
+    "max": 70
+  },
+  "hba1c_pct": {
+    "min": 4.0,
+    "max": 20.0
+  },
+  "weight_kg": {
+    "min": 20,
+    "max": 300
+  },
+  "iob_ml": {
+    "min": 0.0,
+    "max": 0.5,
+    "significant_threshold": 0.02
+  },
+  "anticipated_carbs_g": {
+    "min": 0.0,
+    "max": 500.0
+  },
+  "icr": {
+    "min": 1.0,
+    "max": 50.0
+  },
+  "isf": {
+    "min": 10.0,
+    "max": 200.0
+  },
+  "typical_daily_insulin": {
+    "min": 0.0,
+    "max": 500.0
+  },
+  "cds_safety": {
+    "cgm_error_confidence_cap": 0.5,
+    "typical_correction_tdd_fraction": 0.1,
+    "high_uncertainty_correction_multiplier": 2
+  },
+  "personalized_max_adjustment": {
+    "weight_divisor": 25,
+    "floor": 2
+  },
+  "hypoglycemia_treatment": {
+    "fast_acting_carbs_grams": 15,
+    "fast_acting_carbs_level2_grams": 20
+  },
+  "recommendation": {
+    "default_icr": 10.0,
+    "default_isf": 50.0,
+    "target_glucose_mgdl": 100.0,
+    "glucose_high_for_stacking": 180.0,
+    "max_adjustment": 5,
+    "confidence_threshold": 0.75,
+    "cds_urgent_validation_threshold": 0.8
+  },
+  "adjustment_score": {
+    "glucose_divisor": 150.0,
+    "activity_divisor": 10.0,
+    "hba1c_divisor": 10.0,
+    "glucose_weight": 0.4,
+    "activity_weight": 0.3,
+    "hba1c_weight": 0.3,
+    "default_glucose": 100.0,
+    "default_activity": 5.0,
+    "default_hba1c": 7.0,
+    "clip_min": 0.0,
+    "clip_max": 1.0
+  },
+  "magnitude_thresholds": {
+    "large": 0.8,
+    "moderate": 0.6,
+    "small": 0.4
+  },
+  "activity": {
+    "high_threshold": 7,
+    "dose_reduction_pct": 20
+  },
+  "stacking_risk": {
+    "max_decrease_units": 1
+  }
+}

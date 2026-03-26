@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Virtual environments (keep local only)
+.venv/
+venv/
+venv_tf/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+
+# Local data & outputs (keep structure; ignore large/generated if needed)
+outputs/*.db
+*.db-journal
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Env secrets
+.env
+.env.local
