@@ -69,13 +69,18 @@ export function getMealPlanOrigin() {
 }
 
 /**
- * Meal Plan FastAPI base URL (no `/api` suffix). SSO must call this directly — not the Vite dev server —
- * because Vite’s `/api` proxy may point at GlucoSense (:8000) instead of the meal API (:8001).
+ * Meal Plan FastAPI base URL (no `/api` suffix). In dev, empty string = same origin so `/api/auth/*`
+ * is proxied by Vite to the Meal API (see vite.config.js). Avoids browser → :8001 when the API is
+ * only reachable via the proxy or when using the portal from another host on the LAN.
+ * Production: set `VITE_MEAL_PLAN_API_URL` if the Meal API is on another origin.
  */
 export function getMealPlanApiBaseUrl() {
+  if (import.meta.env.DEV) {
+    return ''
+  }
   const u = import.meta.env.VITE_MEAL_PLAN_API_URL
   if (u) return u.replace(/\/$/, '')
-  return 'http://127.0.0.1:8001'
+  return ''
 }
 
 /**

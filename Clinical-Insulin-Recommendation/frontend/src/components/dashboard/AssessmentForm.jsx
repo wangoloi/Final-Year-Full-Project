@@ -102,10 +102,7 @@ function SmartSensorContextFields({ form, fieldErrors, onChange }) {
   return (
     <>
       <div className="form-field form-field-full" style={{ gridColumn: '1 / -1' }}>
-        <span className="form-label" style={{ fontWeight: 600 }}>Measurement context (required)</span>
-        <p className="form-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-          Used by the Smart Sensor model for time-aware features (sin/cos clock, meal and activity context).
-        </p>
+        <span className="form-label" style={{ fontWeight: 700 }}>Measurement context (required)</span>
       </div>
       <label className="form-field">
         <span className="form-label">Measurement date &amp; time *</span>
@@ -284,7 +281,7 @@ function DosingContextFields({ form, fieldErrors, quickEntryMode, onChange }) {
   return (
     <>
       <div className="form-field form-field-full" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
-        <span className="form-label" style={{ fontWeight: 600 }}>Type 1 dosing context (optional)</span>
+        <span className="form-label" style={{ fontWeight: 700 }}>Previous readings</span>
         {!quickEntryMode && (
           <p className="form-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
             IOB, anticipated carbs, and glucose trend improve safety and context summary.

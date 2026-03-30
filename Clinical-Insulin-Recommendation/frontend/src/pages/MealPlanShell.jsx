@@ -58,9 +58,10 @@ export default function MealPlanShell() {
         />
       </div>
       <p className="meal-plan-shell-note">
-        If this area is blank, start the Meal Plan API on port <strong>8001</strong> and its Vite app (integrated
-        setup uses <strong>5175</strong>), and set <code>VITE_MEAL_PLAN_URL</code> /{' '}
-        <code>VITE_MEAL_PLAN_API_URL</code> in GlucoSense if your ports differ.
+        If this area is blank, start the Meal Plan API on port <strong>8001</strong> and the Meal Plan Vite app
+        (integrated setup uses <strong>5175</strong>). Set <code>VITE_MEAL_PLAN_URL</code> in GlucoSense if the
+        iframe origin differs. In dev, SSO calls <code>/api/auth</code> through the GlucoSense Vite proxy
+        (no direct browser access to :8001).
       </p>
     </div>
   )

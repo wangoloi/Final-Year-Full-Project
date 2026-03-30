@@ -1,6 +1,8 @@
 """Pytest configuration and fixtures - FastAPI."""
 import os
 import tempfile
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,6 +14,12 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_test_db_path}"
 os.environ.setdefault("CHATBOT_TOPIC_NLP", "false")
 # Deterministic chatbot assertions (rule path); unset or set false locally to exercise LLM in tests.
 os.environ.setdefault("CHATBOT_USE_LEGACY_ONLY", "true")
+
+# Absolute path before importing the app so api.core.config picks up a stable CSV location
+# (avoids flaky sensor-demo tests when the process cwd differs from the backend folder).
+_backend_dir = Path(__file__).resolve().parents[1]
+_demo_csv = _backend_dir / "datasets" / "SmartSensor_DiabetesMonitoring.csv"
+os.environ.setdefault("SMART_SENSOR_CSV_PATH", str(_demo_csv.resolve()))
 
 from api.main import app
 from api.shared.database import init_db, SessionLocal
@@ -25,6 +33,15 @@ def pytest_sessionfinish(session, exitstatus):
             os.unlink(_test_db_path)
     except Exception:
         pass
+
+
+@pytest.fixture(autouse=True)
+def reset_sensor_demo_cache():
+    """Avoid flaky sensor-demo tests: reload CSV each test if a prior attempt cached an empty dataset."""
+    from api.modules.sensor_demo import service
+
+    service.reset_sensor_demo_cache()
+    yield
 
 
 @pytest.fixture

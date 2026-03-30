@@ -5,8 +5,6 @@ Separates response assembly from inference logic.
 """
 from typing import Any, Dict, List, Optional
 
-import numpy as np
-
 from ..config.schema import get_glucose_zone, get_glucose_zone_cds, _glucose_label_from_zone, _trend_display
 from ..domain.constants import (
     CGM_ERROR_CONFIDENCE_CAP,
@@ -17,6 +15,7 @@ from ..domain.constants import (
     TYPICAL_CORRECTION_TDD_FRACTION,
 )
 from ..config.schema import RecommendationConfig
+from .helpers.clinical_narrative import build_clinical_assessment_synthesis
 from .schemas import ExplanationDriver, RecommendationResponse
 
 
@@ -30,8 +29,13 @@ def build_response(
     rec: Any,
     explanation_drivers: List[ExplanationDriver],
     alt_scenarios: List[str],
+    *,
+    contributing_factors: Optional[List[Dict[str, Any]]] = None,
+    uncertainty_factors: Optional[List[str]] = None,
 ) -> RecommendationResponse:
     """Assemble full RecommendationResponse from components."""
+    contributing_factors = contributing_factors or []
+    uncertainty_factors = list(dict.fromkeys(uncertainty_factors or []))
     gl = patient_dict.get("glucose_level")
     zone = get_glucose_zone(gl) if gl is not None else None
     ketone_high = _is_ketone_high(patient_dict)
@@ -55,6 +59,28 @@ def build_response(
     )
     rationale = _build_rationale(system_interpretation, requires_urgent_validation)
 
+    zone_interpretation = (zone.get("interpretation") or "").strip() if zone else ""
+    clinical_assessment = build_clinical_assessment_synthesis(
+        pred,
+        dosage.summary,
+        dosage.detail,
+        contributing_factors,
+        uncertainty_factors,
+        zone_interpretation or None,
+    )
+
+    drivers_for_api = list(explanation_drivers)
+    if not drivers_for_api and contributing_factors:
+        for cf in contributing_factors:
+            drivers_for_api.append(
+                ExplanationDriver(
+                    feature=str(cf.get("label") or cf.get("feature") or ""),
+                    value=float(cf.get("relative_importance", 0.0)),
+                    shap_value=float(cf.get("relative_importance", 0.0)),
+                    clinical_sentence=cf.get("clinical_note"),
+                )
+            )
+
     return RecommendationResponse(
         predicted_class=pred,
         confidence=confidence,
@@ -76,7 +102,7 @@ def build_response(
         is_high_risk=rec.is_high_risk,
         high_risk_reason=rec.high_risk_reason,
         probability_breakdown=prob_breakdown,
-        explanation_drivers=explanation_drivers,
+        explanation_drivers=drivers_for_api,
         alternative_scenarios=alt_scenarios,
         status=status,
         category=cds_category,
@@ -85,6 +111,9 @@ def build_response(
         confidence_level=cds_confidence,
         risk_flags=risk_flags,
         requires_urgent_validation=requires_urgent_validation,
+        contributing_factors=contributing_factors,
+        uncertainty_factors=uncertainty_factors,
+        clinical_assessment=clinical_assessment,
     )
 
 

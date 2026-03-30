@@ -99,11 +99,11 @@ def health():
 
 @app.get("/api/health")
 def api_health():
-    """Use via Vite proxy to confirm this Meal Plan API is what port 8000 is serving."""
+    """Use via Vite proxy to confirm the Meal Plan API is reachable (typically :8001 in dev)."""
     return {"status": "ok", "app": "glocusense-meal-plan"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 8001))
     uvicorn.run(app, host="0.0.0.0", port=port)

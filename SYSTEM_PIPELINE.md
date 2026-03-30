@@ -8,12 +8,11 @@ This document is the **single map** for how the GlucoSense + Meal Plan workspace
 
 | Layer | Location | Role |
 |--------|-----------|------|
-| **GlucoSense portal** | `Glucosense/Glucosense/frontend/` | Clinician workspace, patient meal shell, dashboard embed |
-| **GlucoSense clinical API** | `Glucosense/Glucosense/backend/` (`app.py`, `insulin_system/`) | CDS: patients, recommend, explain, trends, alerts |
+| **GlucoSense portal** | `Clinical-Insulin-Recommendation/frontend/` | Clinician workspace, patient meal shell, dashboard embed |
+| **GlucoSense clinical API** | `Clinical-Insulin-Recommendation/backend/` (`app.py`, `insulin_system/`) | CDS: patients, recommend, explain, trends, alerts |
 | **Meal Plan API** | `Meal-Plan-System/backend/` | Auth, foods, chatbot, recommendations, glucose log, sensor demo |
 | **Meal Plan UI** | `Meal-Plan-System/frontend/` | Standalone SPA; same app embedded in GlucoSense |
-| **Smart Sensor ML (offline)** | `Glucosense/Glucosense/backend/src/smart_sensor_ml/` | Train/eval on `data/SmartSensor_DiabetesMonitoring.csv`; PDF + joblib bundle |
-| **Clinical ML (offline)** | `Glucosense/Glucosense/scripts/pipeline/`, `backend/src/clinical_ml_pipeline/` | Legacy evaluation / full clinical improvement pipeline (expects legacy CSV schema unless adapted) |
+| **Clinical insulin pipeline (offline)** | `Clinical-Insulin-Recommendation/backend/src/clinical_insulin_pipeline/` | Dose regression (0–10 IU) on `data/SmartSensor_DiabetesMonitoring.csv`; writes `outputs/clinical_insulin_pipeline/latest/` |
 
 ---
 
@@ -46,7 +45,7 @@ flowchart TB
 ### 2.1 Startup order
 
 1. **Meal Plan API** (`PORT=8001`, `Meal-Plan-System/.../backend`) — must be up before SSO and embed need tokens.
-2. **GlucoSense** — `npm run start` from `Glucosense/.../frontend` starts **Uvicorn :8000** and **Vite** (5173 or next free port).
+2. **GlucoSense** — `npm run start` from `Clinical-Insulin-Recommendation/frontend` starts **Uvicorn :8000** and **Vite** (5173 or next free port).
 3. **Meal Plan UI** — Vite on **5175** (or value in `VITE_MEAL_PLAN_URL`).
 
 ### 2.2 Configuration handoff
@@ -100,38 +99,29 @@ Authenticated calls to **`/api/sensor-demo/*`** read **`SmartSensor_DiabetesMoni
 
 ## 3. Offline / training pipelines
 
-### 3.1 Smart Sensor ML pipeline (Prompt-style end-to-end)
+### 3.1 Clinical insulin pipeline (GlucoSense)
 
-**Purpose:** Train tabular models (and optional LSTM) on the Smart Sensor CSV; produce metrics, plots, PDF report, and a **joblib** bundle for integration experiments.
+**Purpose:** Train/evaluate **insulin dose regression** (Uganda-oriented spec: 0–10 IU, cyclical time features, robust preprocessing, model zoo, metrics, optional SHAP). Implementation: **`backend/src/clinical_insulin_pipeline/`**.
 
-| Stage | Implementation |
-|--------|----------------|
-| Load / EDA | `smart_sensor_ml/load_data.py` |
-| Validate | `smart_sensor_ml/validate_data.py` |
-| Preprocess | `smart_sensor_ml/preprocess.py` (patient groups, no row leakage in split design) |
-| Train / evaluate | `train_model.py`, `evaluate_model.py` |
-| LSTM | `lstm_sequence.py` (TensorFlow; optional) |
-| Report | `outputs/smart_sensor_ml/Smart_Sensor_ML_Report.pdf` |
-
-**Run (from `Glucosense/Glucosense`):**
+**Run (from `Clinical-Insulin-Recommendation` root):**
 
 ```bash
-python scripts/run_smart_sensor_ml.py --skip-lstm --out outputs/smart_sensor_ml
+python run_clinical_insulin_pipeline.py
 ```
 
-**Outputs:** `model_comparison.csv`, `figures/`, `model_bundle/`, `PIPELINE_STAGES.md`.  
-**Note:** LightGBM is opt-in (`SMART_SENSOR_TRY_LGBM=1`) on some Windows/Python builds.
+**Faster local run** (skips learning curve and SHAP):
 
-### 3.2 GlucoSense clinical inference bundle (production CDS)
+```bash
+python run_clinical_insulin_pipeline.py --skip-learning-curve --skip-shap
+```
 
-**Purpose:** The API at **`POST /api/recommend`** loads a bundle under **`outputs/best_model/`** (see `insulin_system` persistence). That bundle is produced by the **legacy** `DataProcessingPipeline` + `ModelTrainer` / evaluation scripts, which expect a **legacy tabular schema** (`Insulin`, `patient_id`, `gender`, etc.).
+**Outputs:** `outputs/clinical_insulin_pipeline/latest/` — leaderboard, `insulin_regression_bundle.joblib`, plots, metadata.
 
-**Default `DashboardConfig.data_path`** points to **`data/SmartSensor_DiabetesMonitoring.csv`** for file placement consistency; the **dashboard reference loader** may skip pipeline validation if the schema does not match (see `data/README.md`).
+### 3.2 GlucoSense API inference bundle
 
-**Practical split:**
+**Purpose:** The FastAPI CDS path loads an **`InferenceBundle`** from **`outputs/best_model/`** when **`inference_bundle.joblib`** is present (`load_best_model`). That format is the **legacy** insulin-system bundle; wiring the new regression bundle into **`POST /api/recommend`** is a separate integration step.
 
-- **Operational CDS:** keep training CSV + bundle aligned with `DataSchema` in `insulin_system/config/schema.py`, or adapt the loader to SmartSensor features.
-- **Research / coursework:** use **`run_smart_sensor_ml.py`** and the Smart Sensor package; integrate predictions via a separate service or future adapter if you need them inside GlucoSense routes.
+**Data file:** `DashboardConfig` / docs use **`data/SmartSensor_DiabetesMonitoring.csv`** as the default training CSV path.
 
 ### 3.3 Meal Plan API first boot
 
@@ -143,10 +133,10 @@ On meal API lifespan: **`init_db()`**, seed foods, build **Chroma** vector store
 
 | Artifact | Typical path |
 |----------|----------------|
-| Smart Sensor CSV (GlucoSense data dir) | `Glucosense/Glucosense/data/SmartSensor_DiabetesMonitoring.csv` |
+| Smart Sensor CSV (GlucoSense data dir) | `Clinical-Insulin-Recommendation/data/SmartSensor_DiabetesMonitoring.csv` |
 | Smart Sensor CSV (meal sensor demo) | `Meal-Plan-System/.../backend/datasets/SmartSensor_DiabetesMonitoring.csv` |
-| GlucoSense clinical bundle | `Glucosense/Glucosense/outputs/best_model/` |
-| Smart Sensor ML run | `Glucosense/Glucosense/outputs/smart_sensor_ml/` |
+| GlucoSense API bundle (optional) | `Clinical-Insulin-Recommendation/outputs/best_model/` |
+| Clinical insulin pipeline run | `Clinical-Insulin-Recommendation/outputs/clinical_insulin_pipeline/latest/` |
 | Meal optional LLM supplement | `Meal-Plan-System/.../backend/knowledge/clinical_prompt_supplement.txt` |
 
 ---
@@ -165,11 +155,11 @@ See **[DEPLOY.md](./DEPLOY.md)**. Compose builds three images; browser hits **80
 | **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Component breakdown, integration table |
 | **SYSTEM_PIPELINE.md** (this file) | End-to-end flows: runtime + ML + data |
 | **[DEPLOY.md](./DEPLOY.md)** | Docker, HTTPS, secrets |
-| `Glucosense/Glucosense/docs/PIPELINE.md` | GlucoSense API vs DB request flow |
-| `Glucosense/Glucosense/docs/RUN.md` | Deep runbook for GlucoSense only |
-| `Meal-Plan-System/.../backend/CHATBOT.md` | RAG + LLM env |
+| `Clinical-Insulin-Recommendation/docs/PIPELINE.md` | GlucoSense API vs DB request flow |
+| `Clinical-Insulin-Recommendation/docs/RUN.md` | Deep runbook for GlucoSense only |
+| `Meal-Plan-System/docs/guides/CHATBOT.md` | RAG + LLM env |
 | `Meal-Plan-System/.../backend/knowledge/README.md` | Clinical prompt supplement |
 
 ---
 
-*Last aligned with the workspace layout under `Glucosense/` and `Meal-Plan-System/`. OpenAPI: GlucoSense `:8000/docs`, Meal API `:8001/docs`.*
+*Last aligned with the workspace layout under `Clinical-Insulin-Recommendation/` and `Meal-Plan-System/`. OpenAPI: GlucoSense `:8000/docs`, Meal API `:8001/docs`.*

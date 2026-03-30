@@ -296,6 +296,23 @@ def get_records(limit: int = 100, patient_id: Optional[int] = None, db_path: Opt
         conn.close()
 
 
+def delete_record(record_id: int, db_path: Optional[Path] = None) -> bool:
+    """Delete one assessment record by primary key. Removes linked clinician_feedback rows. Returns True if a row was deleted."""
+    path = get_db_path(db_path)
+    if not path.exists():
+        return False
+    import sqlite3
+
+    conn = sqlite3.connect(str(path))
+    try:
+        conn.execute("DELETE FROM clinician_feedback WHERE record_id = ?", (record_id,))
+        cur = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def insert_notification(
     text: str,
     notification_type: Optional[str] = None,
@@ -520,6 +537,274 @@ def get_glucose_readings(hours: int = 72, patient_id: Optional[int] = None, db_p
                 (since,),
             )
         return [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_glucose_points_from_records(
+    patient_id: int,
+    hours: Optional[int] = None,
+    *,
+    start_iso: Optional[str] = None,
+    end_iso: Optional[str] = None,
+    limit: Optional[int] = None,
+    db_path: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Glucose rows from assessment API records only: input_summary.glucose_level at created_at.
+
+    Only endpoints that persist the assessment form (recommend / predict) are included.
+
+    Pass ``limit`` (positive int) for the **most recent** N glucose readings (newest assessments first,
+    then returned in chronological order for charting). Otherwise pass ``start_iso``/``end_iso`` or ``hours``.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    path = get_db_path(db_path)
+    if not path.exists():
+        return []
+    import sqlite3
+
+    want_pid = int(patient_id)
+
+    if limit is not None and int(limit) > 0:
+        lim = min(max(int(limit), 1), 500)
+        fetch_cap = min(max(lim * 40, lim), 2000)
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.execute(
+                """
+                SELECT created_at, input_summary, patient_id AS record_patient_id
+                FROM records
+                WHERE patient_id = ?
+                  AND input_summary IS NOT NULL
+                  AND endpoint IN ('recommend', 'predict')
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (want_pid, fetch_cap),
+            )
+            collected: List[Dict[str, Any]] = []
+            for row in cur.fetchall():
+                if len(collected) >= lim:
+                    break
+                row_pid = row["record_patient_id"]
+                try:
+                    row_pid_int = int(row_pid) if row_pid is not None else None
+                except (TypeError, ValueError):
+                    continue
+                if row_pid_int != want_pid:
+                    continue
+                raw = row["input_summary"]
+                if not raw:
+                    continue
+                try:
+                    summ = json.loads(raw) if isinstance(raw, str) else raw
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                gl = summ.get("glucose_level")
+                if gl is None or (isinstance(gl, str) and not str(gl).strip()):
+                    continue
+                try:
+                    v = float(gl)
+                except (TypeError, ValueError):
+                    continue
+                collected.append(
+                    {
+                        "reading_at": row["created_at"],
+                        "value": v,
+                        "is_predicted": False,
+                        "patient_id": row_pid_int,
+                    }
+                )
+            collected.reverse()
+            return collected
+        finally:
+            conn.close()
+
+    if start_iso is not None and end_iso is not None:
+        range_clause = "AND created_at >= ? AND created_at < ?"
+        range_params: tuple = (start_iso, end_iso)
+    else:
+        h = int(hours) if hours is not None else 24
+        since = (datetime.now(timezone.utc) - timedelta(hours=h)).isoformat()
+        range_clause = "AND created_at >= ?"
+        range_params = (since,)
+
+    conn = sqlite3.connect(str(path))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute(
+            f"""
+            SELECT created_at, input_summary, patient_id AS record_patient_id
+            FROM records
+            WHERE patient_id = ?
+              {range_clause}
+              AND input_summary IS NOT NULL
+              AND endpoint IN ('recommend', 'predict')
+            ORDER BY created_at ASC
+            """,
+            (patient_id, *range_params),
+        )
+        out: List[Dict[str, Any]] = []
+        for row in cur.fetchall():
+            row_pid = row["record_patient_id"]
+            try:
+                row_pid_int = int(row_pid) if row_pid is not None else None
+            except (TypeError, ValueError):
+                continue
+            if row_pid_int != want_pid:
+                continue
+            raw = row["input_summary"]
+            if not raw:
+                continue
+            try:
+                summ = json.loads(raw) if isinstance(raw, str) else raw
+            except (json.JSONDecodeError, TypeError):
+                continue
+            gl = summ.get("glucose_level")
+            if gl is None or (isinstance(gl, str) and not str(gl).strip()):
+                continue
+            try:
+                v = float(gl)
+            except (TypeError, ValueError):
+                continue
+            out.append(
+                {
+                    "reading_at": row["created_at"],
+                    "value": v,
+                    "is_predicted": False,
+                    "patient_id": row_pid_int,
+                }
+            )
+        return out
+    finally:
+        conn.close()
+
+
+def get_glucose_points_from_all_records(
+    hours: Optional[int] = None,
+    *,
+    start_iso: Optional[str] = None,
+    end_iso: Optional[str] = None,
+    limit: Optional[int] = None,
+    db_path: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Glucose from all patients' assessment records (input_summary.glucose_level + created_at).
+
+    Only recommend/predict assessment rows are included (same source as the per-patient trend).
+
+    Pass ``limit`` for the **most recent** N glucose readings across all patients, or ``start_iso``/``end_iso`` or ``hours``.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    path = get_db_path(db_path)
+    if not path.exists():
+        return []
+    import sqlite3
+
+    if limit is not None and int(limit) > 0:
+        lim = min(max(int(limit), 1), 500)
+        fetch_cap = min(max(lim * 40, lim), 2000)
+        conn = sqlite3.connect(str(path))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.execute(
+                """
+                SELECT created_at, input_summary, patient_id
+                FROM records
+                WHERE patient_id IS NOT NULL
+                  AND input_summary IS NOT NULL
+                  AND endpoint IN ('recommend', 'predict')
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (fetch_cap,),
+            )
+            collected: List[Dict[str, Any]] = []
+            for row in cur.fetchall():
+                if len(collected) >= lim:
+                    break
+                raw = row["input_summary"]
+                if not raw:
+                    continue
+                try:
+                    summ = json.loads(raw) if isinstance(raw, str) else raw
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                gl = summ.get("glucose_level")
+                if gl is None or (isinstance(gl, str) and not str(gl).strip()):
+                    continue
+                try:
+                    v = float(gl)
+                except (TypeError, ValueError):
+                    continue
+                pid = row["patient_id"]
+                collected.append(
+                    {
+                        "reading_at": row["created_at"],
+                        "value": v,
+                        "is_predicted": False,
+                        "patient_id": int(pid) if pid is not None else None,
+                    }
+                )
+            collected.reverse()
+            return collected
+        finally:
+            conn.close()
+
+    if start_iso is not None and end_iso is not None:
+        range_clause = "AND created_at >= ? AND created_at < ?"
+        range_params: tuple = (start_iso, end_iso)
+    else:
+        h = int(hours) if hours is not None else 24
+        since = (datetime.now(timezone.utc) - timedelta(hours=h)).isoformat()
+        range_clause = "AND created_at >= ?"
+        range_params = (since,)
+
+    conn = sqlite3.connect(str(path))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute(
+            f"""
+            SELECT created_at, input_summary, patient_id
+            FROM records
+            WHERE patient_id IS NOT NULL
+              {range_clause}
+              AND input_summary IS NOT NULL
+              AND endpoint IN ('recommend', 'predict')
+            ORDER BY created_at ASC
+            """,
+            range_params,
+        )
+        out: List[Dict[str, Any]] = []
+        for row in cur.fetchall():
+            raw = row["input_summary"]
+            if not raw:
+                continue
+            try:
+                summ = json.loads(raw) if isinstance(raw, str) else raw
+            except (json.JSONDecodeError, TypeError):
+                continue
+            gl = summ.get("glucose_level")
+            if gl is None or (isinstance(gl, str) and not str(gl).strip()):
+                continue
+            try:
+                v = float(gl)
+            except (TypeError, ValueError):
+                continue
+            pid = row["patient_id"]
+            out.append(
+                {
+                    "reading_at": row["created_at"],
+                    "value": v,
+                    "is_predicted": False,
+                    "patient_id": int(pid) if pid is not None else None,
+                }
+            )
+        return out
     finally:
         conn.close()
 

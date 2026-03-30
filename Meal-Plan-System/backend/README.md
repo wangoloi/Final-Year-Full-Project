@@ -12,9 +12,9 @@ pip install -r requirements.txt
 python run.py
 ```
 
-- **Port:** 8000 (override with `PORT` env var)
-- **OpenAPI:** http://127.0.0.1:8000/docs  
-- **Health:** http://127.0.0.1:8000/api/health  
+- **Port:** 8001 by default (override with `PORT`; use 8000 only if you set `MEAL_PLAN_API_PROXY` in the frontend)
+- **OpenAPI:** http://127.0.0.1:8001/docs  
+- **Health:** http://127.0.0.1:8001/api/health  
 
 | Path | Purpose |
 |------|---------|
@@ -25,5 +25,5 @@ python run.py
 | `scripts/` | `seed_foods.py`, `seed_test_user.py` — run: `python backend/scripts/seed_foods.py` |
 | `.env.example` | Copy to **`backend/.env`** or repo-root **`.env`** |
 | `docker-compose.yml` | Optional DB stack: `docker compose -f backend/docker-compose.yml up -d` |
-| `docker-compose.typesense.yml` | Typesense for food search: `docker compose -f backend/docker-compose.typesense.yml up -d` — then set `TYPESENSE_HOST=localhost` in `.env` (see **`TYPESENSE.md`**) |
-| `CHATBOT.md` | RAG (Chroma) + LLM (OpenAI or Ollama) for **`/api/chatbot/message`** |
+| `docker-compose.typesense.yml` | Typesense for food search: `docker compose -f backend/docker-compose.typesense.yml up -d` — then set `TYPESENSE_HOST=localhost` in `.env` (see **[`../docs/guides/TYPESENSE.md`](../docs/guides/TYPESENSE.md)**) |
+| Chatbot (RAG + LLM) | **[`../docs/guides/CHATBOT.md`](../docs/guides/CHATBOT.md)** — `/api/chatbot/message` |

@@ -204,6 +204,18 @@ class RecommendationResponse(BaseModel):
     confidence_level: float = Field(0.0, description="0.0-1.0 confidence score")
     risk_flags: List[str] = Field(default_factory=list, description="e.g. hypoglycemia_alert, high_uncertainty, cgm_error")
     requires_urgent_validation: bool = Field(False, description="True when confidence <0.8")
+    contributing_factors: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Model features with highest global importance and optional current values",
+    )
+    uncertainty_factors: List[str] = Field(
+        default_factory=list,
+        description="Plain-language reasons certainty may be limited (missing data, ambiguous tiers, etc.)",
+    )
+    clinical_assessment: str = Field(
+        "",
+        description="Short clinician-style synthesis: context, basis, limitations (decision support only)",
+    )
 
 
 class ModelInfoResponse(BaseModel):

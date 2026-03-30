@@ -1,0 +1,29 @@
+{
+  "name": "glucosense-workspace",
+  "private": true,
+  "description": "Integrated stack: npm run fullstack → scripts/start-integrated.ps1 (3 windows). Single-terminal: npm run start:full:concurrent",
+  "scripts": {
+    "integrated": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/start-integrated.ps1\"",
+    "start": "npm run integrated",
+    "fullstack": "npm run integrated",
+    "start:stack": "npm run integrated",
+    "start:full": "npm run integrated",
+    "ports:free": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/free-dev-ports.ps1",
+    "start:full:clean": "npm run ports:free && npm run integrated",
+    "fullstack:clean": "npm run start:full:clean",
+    "start:full:concurrent": "concurrently -k -n meal-api,glucosense,meal-web -c green,blue,magenta \"npm run _meal-api\" \"npm run _glucosense\" \"npm run _meal-web\"",
+    "_meal-api": "cd Meal-Plan-System/backend && set MEAL_UVICORN_RELOAD=0&& set PORT=8001&& python run.py",
+    "_glucosense": "cd Clinical-Insulin-Recommendation/frontend && set GLUCOSENSE_UVICORN_RELOAD=0&& npm run dev:fast",
+    "_meal-web": "cd Meal-Plan-System/frontend && npm run dev",
+    "start:full:reload": "concurrently -k -n meal-api,glucosense,meal-web -c green,blue,magenta \"npm run _meal-api\" \"npm run _glucosense-reload\" \"npm run _meal-web\"",
+    "_glucosense-reload": "cd Clinical-Insulin-Recommendation/frontend && npm run dev:fast",
+    "meal-api": "npm run _meal-api",
+    "meal-web": "npm run _meal-web",
+    "dev:meal": "concurrently -k -n meal-api,meal-web -c green,cyan \"npm run _meal-api\" \"npm run _meal-web\"",
+    "start:meal": "npm run dev:meal"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "kill-port": "^2.0.1"
+  }
+}

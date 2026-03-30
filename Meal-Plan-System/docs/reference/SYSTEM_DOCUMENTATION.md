@@ -703,5 +703,5 @@ This section explains *why* certain technologies, patterns, and design decisions
 | Seed | backend/api/utils/seed.py |
 | Frontend entry | frontend/src/main.jsx |
 | App & routing | frontend/src/App.jsx |
-| API client | frontend/src/api.js |
-| Layout | frontend/src/components/Layout.jsx |
+| API client | frontend/src/lib/api.js |
+| Layout | frontend/src/components/layout/Layout.jsx |

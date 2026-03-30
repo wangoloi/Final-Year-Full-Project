@@ -1,18 +1,15 @@
 import React from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Layout from './components/Layout';
-import Landing from './pages/Landing';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Onboarding from './pages/Onboarding';
-import Dashboard from './pages/Dashboard';
-import Search from './pages/Search';
-import Chatbot from './pages/Chatbot';
-import Recommendations from './pages/Recommendations';
-import Glucose from './pages/Glucose';
-import MealPlan from './pages/MealPlan';
-import SmartSensor from './pages/SmartSensor';
+import Layout from './components/layout/Layout';
+import Landing from './pages/auth/Landing';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import Onboarding from './pages/app/Onboarding';
+import Dashboard from './pages/app/Dashboard';
+import Chatbot from './pages/app/Chatbot';
+import Glucose from './pages/app/Glucose';
+import MealPlan from './pages/app/MealPlan';
 
 function LoadingScreen() {
   return (
@@ -30,12 +27,16 @@ function RequireAuth({ children }) {
   const location = useLocation();
   if (loading) return <LoadingScreen />;
   if (!user && embedHandoffPending) {
+    const qs = location.search || '';
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '0.75rem', background: 'var(--gray-100)' }}>
-        <div className="text-muted" style={{ fontSize: '1.05rem' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '0.75rem', background: 'var(--gray-100)', padding: '1rem' }}>
+        <div className="text-muted" style={{ fontSize: '1.05rem', textAlign: 'center' }}>
           <i className="fas fa-link" style={{ marginRight: '0.5rem' }} />
           Signing you in from GlucoSense…
         </div>
+        <Link to={`/login${qs}`} style={{ fontSize: '0.92rem' }} replace>
+          Sign in with Meal Plan account instead
+        </Link>
       </div>
     );
   }
@@ -99,12 +100,11 @@ export default function App() {
           )}
         >
           <Route index element={<Dashboard />} />
-          <Route path="search" element={<Search />} />
+          <Route path="search" element={<Navigate to="/app/meal-plan" replace />} />
           <Route path="chatbot" element={<Chatbot />} />
-          <Route path="recommendations" element={<Recommendations />} />
+          <Route path="recommendations" element={<Navigate to="/app/meal-plan" replace />} />
           <Route path="meal-plan" element={<MealPlan />} />
           <Route path="glucose" element={<Glucose />} />
-          <Route path="smart-sensor" element={<SmartSensor />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -8,13 +8,13 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  FRONTEND — React SPA (Vite dev server :5173)                      │
+│  FRONTEND — React SPA (Vite dev server :5175)                      │
 │  `frontend/src` — calls `/api/*` (proxied to backend)             │
 └────────────────────────────┬──────────────────────────────────────┘
-                             │ HTTP  /api → 127.0.0.1:8000
+                             │ HTTP  /api → 127.0.0.1:8001 (default)
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  BACKEND — FastAPI in `backend/` (`api.main:app`, uvicorn :8000)   │
+│  BACKEND — FastAPI in `backend/` (`api.main:app`, uvicorn :8001)  │
 │  Routers: auth, search, chatbot, recommendations, glucose           │
 │  Pattern: router → service → repository (per domain)               │
 └────────────────────────────┬──────────────────────────────────────┘

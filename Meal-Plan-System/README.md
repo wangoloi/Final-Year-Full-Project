@@ -6,15 +6,16 @@ Diabetes-focused meal planning: **React (Vite) web app** + **FastAPI** backend +
 
 ```bash
 pip install -r requirements.txt   # installs backend/requirements.txt
-python backend/run.py             # API on :8000 (or: python run.py)
-# other terminal (API on 8000 — Vite default proxy is 8001 for GlucoSense integration):
-cd frontend && npm install && set MEAL_PLAN_API_PROXY=http://127.0.0.1:8000 && npm run dev
+python backend/run.py             # API on :8001 by default (matches Vite proxy)
+# other terminal:
+cd frontend && npm install && npm run dev
 ```
 
-On **Windows PowerShell** use `$env:MEAL_PLAN_API_PROXY='http://127.0.0.1:8000'` before `npm run dev` when the meal API runs on port **8000**.
+If you run the API on **8000** instead, point Vite at it:  
+`set MEAL_PLAN_API_PROXY=http://127.0.0.1:8000` (PowerShell: `$env:MEAL_PLAN_API_PROXY='http://127.0.0.1:8000'`).
 
-- **Web app:** http://localhost:5174 (strict port in `vite.config.js`)  
-- **API docs:** http://127.0.0.1:8000/docs  
+- **Web app:** http://localhost:5175 (strict port in `vite.config.js`; integrated GlucoSense uses this for the iframe)  
+- **API docs:** http://127.0.0.1:8001/docs  
 - **Windows + path with `;`:** [docs/guides/HOW_TO_RUN.md](./docs/guides/HOW_TO_RUN.md)
 
 **One-click (Windows):** `.\scripts\start_full_system.ps1`
@@ -25,9 +26,11 @@ On **Windows PowerShell** use `$env:MEAL_PLAN_API_PROXY='http://127.0.0.1:8000'`
 |--------|------|
 | **`backend/`** | **FastAPI** — `api/`, `run.py`, `requirements.txt`, `tests/`, `scripts/` (Python seeds), `docker-compose.yml`, `.env.example`, `database/`, `datasets/` |
 | **`frontend/`** | **React (Vite)** — `src/`, `docs/UI_DESIGN_GUIDE.md` |
-| **`scripts/`** | Windows / workflow helpers (PowerShell); **not** Python API code |
+| **`scripts/`** | **`start_full_system.ps1`**, **`ci.ps1`** / **`ci.sh`** (local CI); **not** Python API code |
 | **`pyproject.toml`** | `pytest` config for `backend/tests` |
-| **`ml-services/`**, **`models/`** | Optional ML / offline code (not part of the live API package) |
+| **`ml-services/`** | Optional Python services (not part of the live API package) |
+| **`models/`** | Offline ML — **`scripts/`** (pipelines), **`notebooks/`**, **`output/`** |
+| **`docker/`** | **`Dockerfile.api`**, **`Dockerfile.web`**, **`nginx-meal.conf`** — build from repo root: `docker build -f docker/Dockerfile.api .` |
 
 ## Documentation
 
@@ -38,8 +41,9 @@ On **Windows PowerShell** use `$env:MEAL_PLAN_API_PROXY='http://127.0.0.1:8000'`
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System design |
 | [docs/STRUCTURE.md](./docs/STRUCTURE.md) | Full folder map |
 | [docs/guides/HOW_TO_RUN.md](./docs/guides/HOW_TO_RUN.md) | Run & troubleshoot |
+| [docs/PIPELINE.md](./docs/PIPELINE.md) | Dev workflow, local CI, GitHub Actions, Docker |
 | [docs/README.md](./docs/README.md) | All docs index |
 
 ---
 
-*Course / legacy narratives: `docs/reference/`, `docs/project/`, `docs/history/`.*
+*Additional reference material: `docs/reference/`, `docs/project/`.*

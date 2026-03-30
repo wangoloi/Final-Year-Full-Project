@@ -1,5 +1,5 @@
 """
-Dashboard data loader: cached bundle, evaluation artifacts, recommendations, reference data.
+Dashboard data loader: evaluation artifacts and recommendations from disk (no training pipeline).
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from ..config.schema import DashboardConfig, DataSchema, PipelineConfig
+from ..config.schema import DashboardConfig
 from ..persistence import load_best_model, InferenceBundle
 
 
@@ -26,7 +26,7 @@ class DashboardData:
     recommendations: List[Dict[str, Any]] = field(default_factory=list)
     reference_X: Optional[np.ndarray] = None
     reference_y: Optional[np.ndarray] = None
-    reference_df: Optional[pd.DataFrame] = None  # raw test rows for profile
+    reference_df: Optional[pd.DataFrame] = None
     feature_names: List[str] = field(default_factory=list)
     model_name: str = ""
     classes: List[str] = field(default_factory=list)
@@ -73,10 +73,7 @@ def load_dashboard_data(
     data_path: Optional[Path] = None,
     run_pipeline_for_reference: bool = True,
 ) -> DashboardData:
-    """
-    Load all dashboard data. If data_path is set and run_pipeline_for_reference,
-    runs pipeline once to get reference X/y and raw test df (for patient profiles).
-    """
+    """Load dashboard artifacts from configured output dirs. No offline pipeline runs."""
     cfg = config or DashboardConfig()
     out = DashboardData()
 
@@ -84,7 +81,7 @@ def load_dashboard_data(
     out.bundle = bundle
     out.metadata = meta
     if bundle:
-        out.feature_names = list(bundle.feature_names)
+        out.feature_names = list(getattr(bundle, "feature_names", []) or [])
         out.model_name = getattr(bundle, "model_name", meta.get("model_name", ""))
         out.classes = list(meta.get("classes", []) or getattr(bundle, "classes_", []))
 
@@ -104,32 +101,4 @@ def load_dashboard_data(
             for f in rec_dir.glob("patient_*.md"):
                 out.explainability_paths[f.stem] = str(f)
 
-    if not run_pipeline_for_reference or not data_path or not Path(data_path).exists():
-        return out
-    if not bundle:
-        return out
-    # Load reference data via pipeline (raw test for profile + X_test, y_test for similar)
-    try:
-        from ..data_processing.load import DataLoader
-        from ..data_processing.split import TemporalSplitter
-        schema = DataSchema()
-        pipe_cfg = PipelineConfig()
-        loader = DataLoader(schema=schema, file_path=data_path)
-        raw_df = loader.load_and_validate(Path(data_path))
-        splitter = TemporalSplitter(
-            schema=schema,
-            train_ratio=pipe_cfg.train_ratio,
-            val_ratio=pipe_cfg.val_ratio,
-            random_state=pipe_cfg.random_state,
-        )
-        _train, _val, raw_test_df = splitter.split(raw_df, sort_by=schema.PATIENT_ID)
-        out.reference_df = raw_test_df
-        X_test = bundle.transform(raw_test_df.drop(columns=[schema.TARGET], errors="ignore"))
-        out.reference_X = np.asarray(X_test)
-        if schema.TARGET in raw_test_df.columns:
-            out.reference_y = raw_test_df[schema.TARGET].values
-        else:
-            out.reference_y = None
-    except Exception:
-        pass
     return out

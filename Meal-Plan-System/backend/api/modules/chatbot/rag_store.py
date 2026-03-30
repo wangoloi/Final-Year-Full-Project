@@ -87,6 +87,12 @@ def rebuild_rag_index() -> int:
         coll.add(ids=ids, documents=docs)
         logger.info("RAG Chroma index rebuilt", extra={"documents": len(foods)})
         return len(foods)
+    except ImportError as e:
+        logger.warning(
+            "RAG index rebuild skipped (missing package): %s — pip install -r Meal-Plan-System/backend/requirements.txt",
+            e,
+        )
+        raise
     except Exception as e:
         logger.exception("RAG index rebuild failed: %s", e)
         raise

@@ -22,7 +22,7 @@ from .db import (
     upsert_patient_context,
     set_setting,
 )
-from .patients import list_patients, create_patient, _ensure_patients_table
+from .patients import SAMPLE_PATIENT_SEED_FLAG, list_patients, create_patient, _ensure_patients_table
 
 logger = logging.getLogger(__name__)
 
@@ -66,15 +66,19 @@ def _seed_glucose_readings(db_path: Optional[Path] = None) -> None:
 
 
 def _seed_patients(db_path: Optional[Path] = None) -> None:
-    """Create a default patient if none exist."""
+    """Create Sample Patient once on first empty DB. After that, never re-seed when the list is empty (user may delete all)."""
+    if get_setting(SAMPLE_PATIENT_SEED_FLAG, db_path) == "1":
+        return
     patients = list_patients(db_path)
     if len(patients) > 0:
+        set_setting(SAMPLE_PATIENT_SEED_FLAG, "1", db_path)
         return
     create_patient(
         name="Sample Patient",
         condition="Type 1 Diabetes",
         db_path=db_path,
     )
+    set_setting(SAMPLE_PATIENT_SEED_FLAG, "1", db_path)
     logger.info("Seeded default patient")
 
 

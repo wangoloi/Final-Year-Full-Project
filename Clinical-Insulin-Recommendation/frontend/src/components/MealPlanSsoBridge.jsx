@@ -43,7 +43,8 @@ export function useMealPlanSsoBridge(iframeRef) {
         displayName: userProfile?.displayName,
         role: userRole,
       })
-      postMealPlanTokenToIframeWithRetries(win, token)
+      const mealOrigin = getIframePostMessageTarget(iframeRef)
+      postMealPlanTokenToIframeWithRetries(win, token, mealOrigin)
       lastSentKey.current = key
     } catch (e) {
       console.warn('[GlucoSense] Meal Plan SSO:', e.message || e)

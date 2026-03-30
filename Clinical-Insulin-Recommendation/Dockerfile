@@ -1,6 +1,6 @@
 # GlucoSense - Type 1 Diabetes Clinical Support (FastAPI + React)
 # Build: docker build -t glucosense .
-# Requires: data/SmartSensor_DiabetesMonitoring.csv at repo root (Glucosense/Glucosense)
+# Requires: data/SmartSensor_DiabetesMonitoring.csv at repo root (this folder)
 
 # --- Frontend (Vite) — embed URLs must match your public meal app + API ports ---
 FROM node:20-alpine AS frontend-builder
@@ -26,6 +26,8 @@ FROM python:3.11-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/backend/src
+# Serve built SPA from frontend/dist (see backend/app.py); local dev leaves this unset so /api is never shadowed
+ENV GLUCOSENSE_SERVE_SPA=1
 
 COPY --from=pybuilder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH

@@ -1,13 +1,15 @@
 # GlucoSense documentation
 
 | Document | Description |
-|----------|-------------|
-| **[../../../SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md)** | **Workspace-wide** runtime + ML pipeline (GlucoSense + Meal Plan + Smart Sensor ML). |
-| **[STRUCTURE.md](STRUCTURE.md)** | Where **`backend/`**, **`frontend/`**, **`data/`**, and **`docs/notebooks/`** live. |
+|----------|--------------|
+| **[STRUCTURE.md](STRUCTURE.md)** | Repository layout: `backend/`, `frontend/`, `data/`, `scripts/`, `outputs/`. |
+| **[RUN.md](RUN.md)** | Run the clinical insulin training pipeline, API, frontend, troubleshooting. |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | System structure, C4-style views, layers, repo map. |
-| **[RUN.md](RUN.md)** | How to run pipeline, API, frontend, and troubleshooting. |
-| **[GLUCOSENSE_SYSTEM_DOCUMENTATION.md](GLUCOSENSE_SYSTEM_DOCUMENTATION.md)** | Full system narrative (if maintained alongside this tree). |
-| **Guides** | `PIPELINE.md`, `INPUT_FLOW.md`, `CDS_SAFETY_ENGINE.md`, `UGANDA_T1D_GUIDELINES.md`, improvement/refactor notes, etc. |
-| **Smart Sensor ML** | `backend/src/smart_sensor_ml/` · run `scripts/run_smart_sensor_ml.py` · outputs under `outputs/smart_sensor_ml/`. |
+| **[PIPELINE.md](PIPELINE.md)** | Runtime seed/DB flow and how training artifacts relate to the API. |
+| **[INPUT_FLOW.md](INPUT_FLOW.md)** | Patient and assessment input handling. |
+| **[CDS_SAFETY_ENGINE.md](CDS_SAFETY_ENGINE.md)** | Clinical decision support safety behaviour. |
+| **[UGANDA_T1D_GUIDELINES.md](UGANDA_T1D_GUIDELINES.md)** | Uganda T1D guideline JSON and dosing context. |
 
-Integrated app overview (three processes): **[../../../README.md](../../../README.md)** · **[../../../ARCHITECTURE.md](../../../ARCHITECTURE.md)**.
+**Training package:** `backend/src/clinical_insulin_pipeline/` — run via **`python run_clinical_insulin_pipeline.py`** (see [scripts/README.md](../scripts/README.md)).
+
+**Workspace-wide** (GlucoSense + Meal Plan + integrated ports): **[../../../SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md)** · **[../../../README.md](../../../README.md)**.

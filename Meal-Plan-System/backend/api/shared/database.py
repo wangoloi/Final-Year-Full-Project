@@ -1,6 +1,7 @@
 """Database - SQLAlchemy engine and session."""
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.pool import NullPool
 
 from api.core.config import DATABASE_URL
 from api.core.logging_config import get_logger
@@ -12,7 +13,12 @@ if str(DATABASE_URL).startswith("sqlite"):
     # Reduce "database is locked" during concurrent seed + auth (Windows / dev).
     _connect_args["timeout"] = 30.0
 
-engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+# SQLite: avoid QueuePool exhaustion under TestClient / threaded workers — each checkout is a fresh connection.
+_engine_kwargs = {"connect_args": _connect_args}
+if str(DATABASE_URL).startswith("sqlite"):
+    _engine_kwargs["poolclass"] = NullPool
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 
 @event.listens_for(engine, "connect")
@@ -107,7 +113,7 @@ def _migrate_sqlite_chat_session_id() -> None:
 
 def init_db():
     """Create tables from models."""
-    from api.models import User, FoodItem, GlucoseReading, ChatMessage, ChatSession  # noqa: F401
+    from api.models import User, FoodItem, GlucoseReading, UserFoodFeedback, ChatMessage, ChatSession  # noqa: F401
     Base.metadata.create_all(bind=engine)
     _migrate_sqlite_users_columns()
     _migrate_sqlite_chat_session_id()

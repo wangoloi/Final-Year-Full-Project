@@ -1,6 +1,6 @@
 # GlucoSense — How to run the system
 
-**Workspace root:** open this folder in your editor (`Glucosense/Glucosense` — where `app.py`, `backend/`, `frontend/`, and `data/` live).
+**Workspace root:** open this folder in your editor (`Clinical-Insulin-Recommendation` — where `app.py`, `backend/`, `frontend/`, and `data/` live).
 
 **Full detail:** [docs/RUN.md](docs/RUN.md)
 
@@ -28,27 +28,25 @@ If `.venv` points at another PC’s Python path, run from the project root:
 .\scripts\windows\setup_venv.ps1 -Recreate
 ```
 
-That creates a fresh venv and installs `requirements.txt`. The API needs **xgboost** (and related libs) installed to load `outputs/best_model/inference_bundle.joblib`.
+That creates a fresh venv and installs `requirements.txt`. If you place **`outputs/best_model/inference_bundle.joblib`**, ensure training dependencies match that bundle format.
 
 ---
 
-## Step 1 — Train the model (required for recommendations)
+## Step 1 — Train the clinical insulin pipeline (optional)
 
 From the **project root**:
 
 ```bash
-python run_pipeline.py
+python run_clinical_insulin_pipeline.py
 ```
 
-**Faster try-out** (~2 min):
+**Faster try-out** (skips learning curve and SHAP):
 
 ```bash
-python run_pipeline.py --no-eda --models gradient_boosting
+python run_clinical_insulin_pipeline.py --skip-learning-curve --skip-shap
 ```
 
-**Output:** `outputs/best_model/inference_bundle.joblib` (used by the API).
-
-*Alternative path:* `python scripts/pipeline/run_pipeline.py` (same behavior).
+**Output:** `outputs/clinical_insulin_pipeline/latest/` (leaderboard, bundle, plots). The API may still expect a legacy-format bundle under **`outputs/best_model/`** — see **`outputs/README.md`**.
 
 ---
 
@@ -134,7 +132,7 @@ Open **http://localhost:8000** (API remains under `/api/...`).
 
 | Problem | What to do |
 |---------|------------|
-| **503 / model not loaded** | Run **Step 1** (`run_pipeline.py`). |
+| **503 / model not loaded** | Add `outputs/best_model/inference_bundle.joblib` or wire the pipeline bundle; see **`outputs/README.md`**. |
 | **Data file not found** | Check `data/SmartSensor_DiabetesMonitoring.csv` exists. |
 | **Frontend errors / ECONNREFUSED** | Start the **API first**, then the frontend, or use `run_dev.ps1`. |
 | **Port 8000 in use** | Run `uvicorn ... --port 8001` and point Vite’s proxy at 8001 (see `frontend/vite.config.js`). |

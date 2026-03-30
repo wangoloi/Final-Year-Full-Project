@@ -8,9 +8,10 @@ Root = `Meal-Plan-System` (this folder).
 |------|------|---------|
 | **Backend (FastAPI)** | **`backend/`** | All server-side code & API tests — see below |
 | **Frontend (React)** | **`frontend/`** | Vite SPA (`npm run dev`) — **only client** |
-| **ML / research (optional)** | **`ml-services/`**, **`models/`** | Not imported by the live API |
+| **ML / research (optional)** | **`ml-services/`**, **`models/`** | Not imported by the live API — see **`models/README.md`** (`scripts/`, `notebooks/`, `output/`) |
 | **Automation** | **`scripts/`** | Cross-platform helpers (PowerShell); **Python seeds** live under **`backend/scripts/`** |
-| **Docs** | **`docs/`** | Architecture, guides, reference |
+| **Docs** | **`docs/`** | Architecture, guides, reference (e.g. **`docs/guides/CHATBOT.md`**, **`TYPESENSE.md`**) |
+| **Container images** | **`docker/`** | `Dockerfile.api`, `Dockerfile.web`, `nginx-meal.conf` (build context = repo root) |
 
 ## `backend/` — everything for the FastAPI service
 
@@ -32,8 +33,16 @@ Root = `Meal-Plan-System` (this folder).
 
 | Path | Purpose |
 |------|---------|
-| **`frontend/src/`** | App entry, pages, components, API client (`api.js`) |
+| **`frontend/src/`** | App entry (`App.jsx`, `main.jsx`), **`lib/api.js`**, **`styles/index.css`**, **`pages/auth/`**, **`pages/app/`**, **`components/`**, **`context/`** |
 | **`frontend/docs/`** | **`UI_DESIGN_GUIDE.md`** — layout and styling conventions |
+
+## `models/` — offline ML (optional)
+
+| Path | Purpose |
+|------|---------|
+| **`models/scripts/`** | `run_pipeline.py` — train sample recommender; reads **`backend/datasets/`** |
+| **`models/notebooks/`** | Jupyter notebooks |
+| **`models/output/`** | Plots and `.joblib` artifacts (local) |
 
 ## Root shims (convenience)
 
@@ -49,9 +58,10 @@ Root = `Meal-Plan-System` (this folder).
 | Path | Purpose |
 |------|---------|
 | **`docs/ARCHITECTURE.md`** | System design |
+| **`docs/PIPELINE.md`** | Dev, CI, Docker, offline ML |
 | **`docs/STRUCTURE.md`** | This file |
 | **`docs/guides/`** | HOW_TO_RUN, setup, troubleshooting |
-| **`docs/reference/`**, **`docs/project/`**, **`docs/history/`** | Longer / legacy material |
+| **`docs/reference/`**, **`docs/project/`** | Longer reference & audits |
 | **`docs/architecture/`** | ER diagrams, implementation notes |
 | **`docs/frontend/`** | Index → UI guide lives in **`frontend/docs/`** |
 

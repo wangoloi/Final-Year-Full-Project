@@ -42,7 +42,11 @@ class User(Base):
     def check_password(self, password: str) -> bool:
         if not self.password_hash:
             return False
-        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+        except (ValueError, TypeError):
+            # Invalid or legacy non-bcrypt hash — treat as failed login, do not 500 the API
+            return False
 
     def to_dict(self):
         return {
@@ -97,6 +101,18 @@ class GlucoseReading(Base):
     reading_type = Column(String(20), nullable=False)
     reading_time = Column(DateTime, default=datetime.utcnow, nullable=False)
     notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UserFoodFeedback(Base):
+    """Lightweight learning signal: like / skip on recommended foods."""
+
+    __tablename__ = 'meal_recommendation_feedback'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    food_id = Column(Integer, ForeignKey('food_items.id'), nullable=False)
+    action = Column(String(10), nullable=False)  # like | skip
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

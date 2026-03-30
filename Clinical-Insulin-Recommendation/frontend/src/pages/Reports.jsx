@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useClinical } from '../context/ClinicalContext'
@@ -206,31 +206,55 @@ export default function Reports() {
   const [timeRange, setTimeRange] = useState('12h')
   const [expandedId, setExpandedId] = useState(null)
   const [, setDownloadedVersion] = useState(0)
+  const [deletingId, setDeletingId] = useState(null)
+
+  const loadReports = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true)
+      setError(null)
+    }
+    try {
+      const [recRes, ctxRes] = await Promise.all([
+        apiFetch(`${API}/records?limit=100`),
+        apiFetch(`${API}/patient-context`),
+      ])
+      if (!recRes.ok) throw new Error(await recRes.text())
+      const json = await recRes.json()
+      setData(json)
+      if (ctxRes.ok) {
+        const ctx = await ctxRes.json()
+        setPatientCtx(ctx)
+      }
+    } catch (e) {
+      if (!silent) setError(e.message)
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const [recRes, ctxRes] = await Promise.all([
-          apiFetch(`${API}/records?limit=100`),
-          apiFetch(`${API}/patient-context`),
-        ])
-        if (!recRes.ok) throw new Error(await recRes.text())
-        const json = await recRes.json()
-        if (!cancelled) setData(json)
-        if (ctxRes.ok) {
-          const ctx = await ctxRes.json()
-          if (!cancelled) setPatientCtx(ctx)
-        }
-      } catch (e) {
-        if (!cancelled) setError(e.message)
-      } finally {
-        if (!cancelled) setLoading(false)
+    loadReports(false)
+  }, [loadReports])
+
+  const handleDeleteRecord = async (recordId) => {
+    if (!window.confirm('Delete this report? This cannot be undone.')) return
+    setDeletingId(recordId)
+    try {
+      const res = await apiFetch(`${API}/records/${recordId}`, { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        window.alert(body.detail || body.message || 'Could not delete report.')
+        return
       }
+      if (expandedId === recordId) setExpandedId(null)
+      await loadReports(true)
+      refreshFromApi?.()
+    } catch (e) {
+      window.alert(e.message || 'Delete failed.')
+    } finally {
+      setDeletingId(null)
     }
-    load()
-    return () => { cancelled = true }
-  }, [])
+  }
 
   const allRecords = data.records || []
   const records = timeRange === '12h' ? filterLast12Hours(allRecords) : allRecords
@@ -383,7 +407,7 @@ export default function Reports() {
                   <th>Type</th>
                   <th>Outcome</th>
                   <th>Review</th>
-                  <th aria-hidden>Details</th>
+                  <th>Delete</th>
                 </tr>
               </thead>
               <tbody>
@@ -400,18 +424,29 @@ export default function Reports() {
                         <td>{formatType(r.endpoint)}</td>
                         <td>{formatOutcome(r.predicted_class)}</td>
                         <td>
-                          <span className={r.is_high_risk ? 'badge badge-warning' : 'badge badge-ok'}>
-                            {r.is_high_risk ? 'Review' : 'OK'}
-                          </span>
+                          {r.is_high_risk ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm reports-review-btn"
+                              onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                              aria-expanded={expandedId === r.id}
+                              title="Open details for clinical review"
+                            >
+                              Review
+                            </button>
+                          ) : (
+                            <span className="badge badge-ok">OK</span>
+                          )}
                         </td>
-                        <td>
+                        <td className="reports-actions-cell">
                           <button
                             type="button"
-                            className="btn btn-text btn-details"
-                            onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                            aria-expanded={expandedId === r.id}
+                            className="btn btn-sm reports-delete-btn"
+                            disabled={deletingId === r.id}
+                            onClick={() => handleDeleteRecord(r.id)}
+                            title="Delete this report"
                           >
-                            {expandedId === r.id ? 'Hide details' : 'Details'}
+                            {deletingId === r.id ? 'Deleting…' : 'Delete'}
                           </button>
                         </td>
                       </tr>

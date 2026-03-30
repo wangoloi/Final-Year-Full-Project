@@ -64,12 +64,15 @@ export default function PatientRecords({ patient }) {
   if (!patient) return null
   if (loading) return <div className="card"><p>Loading records...</p></div>
 
+  const displayName =
+    patient.name != null && patient.name !== '' ? String(patient.name) : 'Patient'
+
   return (
     <div className="patient-records">
       <div className="card">
-        <h2 className="card-heading">{patient.name}</h2>
+        <h2 className="card-heading">{displayName}</h2>
         <p className="card-description">
-          {patient.condition}
+          {patient.condition != null && patient.condition !== '' ? String(patient.condition) : ''}
           {patient.medical_record_number && ` • MRN: ${patient.medical_record_number}`}
         </p>
       </div>

@@ -3,7 +3,7 @@ GlucoSense Clinical Support - FastAPI backend (web API for the React app).
 
 Repository layout:
   backend/app.py   ← this file (run via uvicorn)
-  backend/src/     ← insulin_system, clinical_ml_pipeline
+  backend/src/     ← insulin_system (API, storage)
   frontend/        ← React (Vite)
   data/, outputs/, config/  ← repo root
 
@@ -23,7 +23,6 @@ import warnings
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# Suppress sklearn version mismatch warnings when loading saved models
 warnings.filterwarnings("ignore", message=".*Trying to unpickle.*", category=UserWarning)
 
 _log = logging.getLogger("glucosense")
@@ -40,16 +39,19 @@ _storage_db.set_project_root(ROOT)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import Request
 
-from insulin_system.api.routes import router as api_router
+_LAZY_ROUTES = os.environ.get("GLUCOSENSE_LAZY_ROUTES", "1").strip().lower() not in ("0", "false", "no")
+_routes_loaded = False
+_routes_lock = threading.Lock()
 
 API_KEY = os.environ.get("GLUCOSENSE_API_KEY")
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    """DB seed + background model preload."""
-    _log.info("GlucoSense starting. First /api/recommend may take 30-60s while the model loads (one-time).")
+    """DB seed + optional background bundle preload."""
+    _log.info("GlucoSense starting.")
     try:
         from insulin_system.storage import init_db, run_seed_if_needed
 
@@ -63,9 +65,9 @@ async def _lifespan(app: FastAPI):
             from insulin_system.api.engine import get_bundle
 
             get_bundle()
-            _log.info("Model loaded and ready.")
+            _log.info("Inference bundle preloaded.")
         except Exception as e:
-            _log.warning("Model preload failed (will load on first request): %s", e)
+            _log.warning("Inference bundle not loaded (expected until a model is wired): %s", e)
 
     threading.Thread(target=_preload, daemon=True).start()
     yield
@@ -101,10 +103,39 @@ except ImportError:
     limiter = None
 
 
-app.include_router(api_router)
+# Liveness must not depend on the heavy routes module or SPA static mount (Vite + ApiGate poll this).
+@app.get("/api/health/live", tags=["health"])
+def api_health_live():
+    return {"status": "ok", "live": True}
 
+
+def _include_heavy_routes() -> None:
+    """Import API routes once. Call from eager path or first request when lazy."""
+    global _routes_loaded
+    with _routes_lock:
+        if _routes_loaded:
+            return
+        from insulin_system.api.routes import router as api_router  # noqa: E402
+
+        app.include_router(api_router)
+        _routes_loaded = True
+
+
+if not _LAZY_ROUTES:
+    _include_heavy_routes()
+else:
+
+    @app.middleware("http")
+    async def _lazy_load_routes(request: Request, call_next):
+        # Defer importing routes until first request so uvicorn binds quickly (Windows ML stack can be very slow to import).
+        _include_heavy_routes()
+        return await call_next(request)
+
+# Serving frontend/dist at "/" breaks /api when the mount wins route matching (common after `npm run build`).
+# Docker sets GLUCOSENSE_SERVE_SPA=1; local dev defaults off so Vite proxy always hits the API.
 frontend_dist = ROOT / "frontend" / "dist"
-if frontend_dist.exists():
+_serve_spa = os.environ.get("GLUCOSENSE_SERVE_SPA", "0").strip().lower() in ("1", "true", "yes")
+if frontend_dist.exists() and _serve_spa:
     static = StaticFiles(directory=str(frontend_dist), html=True)
     app.mount("/", static, name="frontend")
 else:

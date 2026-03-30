@@ -111,6 +111,12 @@ def get_or_create_user_for_glucosense_embed(
     normalized_email = (email or "").strip().lower()
     user = db.query(User).filter(User.email == normalized_email).first()
     if user:
+        # Embed must land on /app, not onboarding — sync flag for accounts created outside SSO.
+        if user.onboarding_completed is False:
+            user.onboarding_completed = True
+            db.add(user)
+            db.commit()
+            db.refresh(user)
         return user
 
     local = (normalized_email.split("@")[0] if "@" in normalized_email else normalized_email) or "user"
@@ -140,6 +146,11 @@ def get_or_create_user_for_glucosense_embed(
         db.rollback()
         user = db.query(User).filter(User.email == normalized_email).first()
         if user:
+            if user.onboarding_completed is False:
+                user.onboarding_completed = True
+                db.add(user)
+                db.commit()
+                db.refresh(user)
             return user
         raise
     db.refresh(user)

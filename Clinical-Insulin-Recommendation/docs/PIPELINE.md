@@ -2,7 +2,7 @@
 
 This document describes how data is generated, stored, and fed into the **GlucoSense** API and UI on first run and during normal operation.
 
-For the **full integrated workspace** (GlucoSense + Meal Plan + offline Smart Sensor ML), see **[../../../SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md)**.
+For the **full integrated workspace** (GlucoSense + Meal Plan + offline training), see **[../../../SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md)**.
 
 ---
 
@@ -72,17 +72,12 @@ Seed is **idempotent**: it only inserts when the corresponding table is empty (o
 
 ## 4. Training pipeline (model data)
 
-Separate from runtime/seed data, the **ML model** used by `/api/recommend` is produced by the training pipeline:
+Separate from runtime/seed data, **offline training** is implemented by **`clinical_insulin_pipeline`** (`python run_clinical_insulin_pipeline.py`). It writes **`outputs/clinical_insulin_pipeline/latest/`** (regression bundle, metrics, plots).
 
-```
-data/SmartSensor_DiabetesMonitoring.csv  →  scripts/pipeline/run_evaluation.py  →  Pipeline (clean, encode, split)
-                                 →  Train models  →  Best model saved to outputs/best_model/
-                                 →  app loads bundle  →  POST /api/recommend uses it
-```
+The **FastAPI** CDS path loads an **`InferenceBundle`** from **`outputs/best_model/`** when present (`load_best_model`). That file may be produced by a **legacy-compatible** training path or copied from a compatible bundle; until present, some routes may return **503** or use stubs — see **`outputs/README.md`** and `insulin_system/persistence/bundle.py`.
 
-- **Input:** CSV with patient features (e.g. glucose_level, HbA1c, physical_activity, etc.).
-- **Output:** `outputs/best_model/inference_bundle.joblib` and metadata.
-- **Runtime:** FastAPI loads the bundle at first request; recommendations are then served from this model. No seed data is used for the model itself.
+- **Input:** CSV with patient features (default: `data/SmartSensor_DiabetesMonitoring.csv`).
+- **Runtime:** No seed data is used for model weights; seed data only populates demo DB content.
 
 ---
 
@@ -101,7 +96,8 @@ data/SmartSensor_DiabetesMonitoring.csv  →  scripts/pipeline/run_evaluation.py
 
 | Component        | Path |
 |-----------------|------|
-| DB init + tables | `src/insulin_system/storage/db.py` |
-| Seed logic       | `src/insulin_system/storage/seed_data.py` |
-| API routes       | `src/insulin_system/api/routes.py` |
+| DB init + tables | `backend/src/insulin_system/storage/db.py` |
+| Seed logic       | `backend/src/insulin_system/storage/seed_data.py` |
+| API routes       | `backend/src/insulin_system/api/routes.py` |
+| Clinical training | `backend/src/clinical_insulin_pipeline/` |
 | DB file (default)| `outputs/glucosense.db` |

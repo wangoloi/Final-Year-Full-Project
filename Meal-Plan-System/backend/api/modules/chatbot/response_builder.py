@@ -40,12 +40,159 @@ _GLUCOSE_CONTEXT = (
 )
 # Must not match definitional "which food is X" (leave that for search + single-food reply).
 _GENERAL_FOOD_RE = re.compile(
-    r"\b(what|which)\s+foods?\s+(can|should|could|would|to|for|that|help|keep|work|do)\b|"
-    r"\b(what|which)\s+foods?\s+are\s+(good|best|okay|ok|safe|better|fine)\b|"
+    r"\b(what|which)\s+foods?\s+(can|should|could|would|to|for|that|help|keep|work|do|have)\b|"
+    r"\b(what|which)\s+foods?\s+are\s+(good|best|okay|ok|safe|better|fine|low)\b|"
+    r"\bfoods?\s+(with|that\s+have)\s+(low|the\s+lowest|less|minimal)\s+(sugar|carbs?)\b|"
+    r"\b(low|lower|lowest)\s+(sugar|carb)\s+(foods?|content|choices?)\b|"
+    r"\bwhich\s+.*\b(low|lower|lowest)\s+(sugar|carb)\b|"
     r"\bmeal\s+ideas?\b|\bsnack\s+ideas?\b|\beat\s+what\b",
     re.IGNORECASE,
 )
-DISCLAIMER = "\n\n_This is general information only. Consult your healthcare provider for medical advice._"
+
+# Short follow-ups that should stay in nutrition scope (handled in service when history exists).
+_CONTINUATION_QUERY_RE = re.compile(
+    r"(?ix)^\s*("
+    r"give\s+me\s+more|"
+    r"tell\s+me\s+more|"
+    r"more\s+please|"
+    r"can\s+you\s+(say|give)\s+more|"
+    r"(go\s+on|continue|and\s+then)\s*\??|"
+    r"(any\s+)?other\s+(examples?|tips?|ideas?)|"
+    r"what\s+else|"
+    r"expand(\s+on\s+that)?|"
+    r"show\s+me\s+more"
+    r")\s*[\?\!\.]*\s*$",
+)
+
+
+def is_nutrition_continuation_query(msg: str) -> bool:
+    """Very short continuations like 'give me more' (use with non-empty chat history)."""
+    raw = (msg or "").strip()
+    if not raw or len(raw) > 72:
+        return False
+    if re.match(r"(?i)^\s*more\s*[\?\!\.]*\s*$", raw):
+        return True
+    return bool(_CONTINUATION_QUERY_RE.match(raw))
+
+
+def is_low_sugar_foods_question(msg: str) -> bool:
+    m = (msg or "").lower()
+    if re.search(r"\b(low|lower|lowest|less|minimal)\s+(sugar|carb)", m):
+        return True
+    if re.search(r"\b(sugar|carb)\s+(content|amount)\b", m) and "which" in m:
+        return True
+    return False
+
+
+def is_fruit_glucose_question(msg: str) -> bool:
+    """Fruit + glucose balance (not a random single-food hit)."""
+    m = (msg or "").lower()
+    if not re.search(r"\bfruits?\b", m):
+        return False
+    fruit_q = re.search(
+        r"\b(which|what|how)\s+.*\bfruits?\b|"
+        r"\bfruits?\s+(for|with|and|or|in)\b|"
+        r"\b(balance|balancing|stabil|steady|levels?|sugar\s+levels?|diabetes|portion|eat|include|choose|pick)\b",
+        m,
+    )
+    return bool(fruit_q)
+# Appended to rule-based replies when medically relevant (see service layer for exceptions).
+DISCLAIMER = (
+    "\n\n*This is general education, not personal medical advice—please work with your healthcare "
+    "provider for guidance tailored to you.*"
+)
+
+# Strip these when loading chat history for the LLM (legacy + current wording).
+DISCLAIMER_HISTORY_MARKERS = (
+    "\n\nThis is general guidance",
+    "\n\n*This is general education",
+    "\n\n_This is general information only",
+    "This is general guidance. Please consult your healthcare provider",
+)
+
+
+def strip_disclaimer_suffix(content: str) -> str:
+    """Remove trailing disclaimer from persisted assistant text."""
+    c = (content or "").strip()
+    if not c:
+        return c
+    for marker in DISCLAIMER_HISTORY_MARKERS:
+        if marker in c:
+            return c.split(marker, 1)[0].strip()
+    return c
+
+
+def _reply_has_disclaimer(reply: str) -> bool:
+    r = (reply or "").lower()
+    return "healthcare" in r and ("general education" in r or "general guidance" in r or "medical advice" in r)
+
+
+def append_disclaimer_if_needed(reply: str) -> str:
+    """Append standard disclaimer unless already present (e.g. legacy saves)."""
+    r = (reply or "").strip()
+    if not r:
+        return r
+    if _reply_has_disclaimer(r):
+        return r
+    return r + DISCLAIMER
+
+
+# Shared markdown body for "what can you do?" and off-topic guidance (frontend renders ** as bold).
+_SCOPE_BODY_MARKDOWN = """**What I can help with**
+
+- **Foods & meals** — Whether a food fits a diabetes-friendly pattern, **portion ideas**, and **lower-GI swaps** (for example matooke, beans, or rice).
+- **Carbs & glycemic index (GI)** — How carbohydrates affect glucose and how to use GI as a practical guide.
+- **Blood sugar context** — General education when you mention **high readings**, **low readings**, or **steady eating** (not personal insulin or medication doses).
+- **Meal ideas** — Snacks and plates that combine fiber, protein, and smart carbohydrates.
+
+**How to ask**
+
+For example: *Is matooke good for diabetes?*, *What foods help keep blood sugar stable?*, or *What should I eat if my sugar is high?*
+
+If your question is **not about nutrition or diabetes eating patterns**, I will gently steer you back to these topics."""
+
+_SCOPE_INTENT_RE = re.compile(
+    r"(?ix)^\s*("
+    r"what\s+do\s+you\s+offer|"
+    r"what\s+can\s+you\s+(do|help(\s+with)?|offer)|"
+    r"what\s+('s|is)\s+(this|the)\s+(chat|bot|for)|"
+    r"what\s+are\s+you\s+for|"
+    r"how\s+(do|can)\s+i\s+use\s+(this|it)|"
+    r"show\s+me\s+what\s+you\s+can\s+do|"
+    r"what\s+should\s+i\s+ask|"
+    r"what\s+.*\bscope\b|"
+    r"what\s+.*\bcapabilities\b|"
+    r"tell\s+me\s+about\s+(this|you)|"
+    r"introduce\s+yourself"
+    r")\s*[\?\!\.]*\s*$",
+)
+_SCOPE_HELP_ONLY_RE = re.compile(r"(?ix)^\s*help\s*[\?\!\.]*\s*$")
+
+
+def is_scope_intent_query(msg: str) -> bool:
+    """User explicitly asks what the assistant offers / how to use the chat."""
+    raw = (msg or "").strip()
+    if not raw or len(raw) > 160:
+        return False
+    if _SCOPE_HELP_ONLY_RE.match(raw):
+        return True
+    return bool(_SCOPE_INTENT_RE.match(raw))
+
+
+def build_scope_welcome_reply() -> str:
+    return (
+        "Here is what this **Nutrition Assistant** can help you with.\n\n" + _SCOPE_BODY_MARKDOWN
+    )
+
+
+def build_off_topic_guidance_reply() -> str:
+    """Same scope content as welcome; used when the topic classifier marks the message off-topic."""
+    return (
+        "That sounds **outside the nutrition topics** I am designed for. "
+        "Here is what this chat **can** help you with:\n\n"
+        + _SCOPE_BODY_MARKDOWN
+    )
+
 
 # Glucose numbers in user text (mg/dL assumed unless mmol/L is stated).
 _GLUCOSE_CTX_RE = re.compile(
@@ -273,26 +420,38 @@ def is_general_food_question(msg: str) -> bool:
 
 
 def build_greeting_reply() -> str:
-    return "Hi! I'm your nutrition assistant for diabetes. Ask about foods, blood sugar, or meal ideas. Try: 'Is matooke good for diabetes?'"
+    return (
+        "Hello. I am your **Nutrition Assistant** for diabetes-friendly eating. "
+        "You can ask about specific foods, carbohydrates, glycemic index, meal ideas, or what to consider when readings run high or low. "
+        "For example: *Is matooke a good choice for diabetes?*"
+    )
 
 
 def build_gi_reply() -> str:
-    return "Glycemic index measures how fast a food raises blood sugar. Low (≤55) is best for diabetes. Prefer beans, lentils, vegetables, whole grains."
+    return (
+        "**Glycemic index (GI)** describes how quickly a carbohydrate food tends to raise blood glucose after eating. "
+        "Foods with a **low GI (about 55 or less)** usually raise glucose more gently than high-GI choices. "
+        "Many people with diabetes emphasize beans, lentils, non-starchy vegetables, and whole grains, and they use **portion size** and **what you pair with carbs** (protein, fiber, healthy fats) to keep responses steadier."
+    )
 
 
 def build_carb_reply() -> str:
-    return "Carbohydrates have the biggest impact on blood sugar. Fiber slows absorption. Pair carbs with protein and fiber."
+    return (
+        "**Carbohydrates** have the largest effect on blood glucose for most people. "
+        "**Fiber** slows digestion and can soften rises; **protein** and **non-starchy vegetables** help make meals more filling without piling on extra fast carbs. "
+        "A practical approach is to choose **mostly lower-GI carbs**, watch **portions**, and build plates that balance carb quality with fiber and protein."
+    )
 
 
 def build_high_bg_reply() -> str:
     return (
         "If your **reading is high**, the priority is to follow the **plan your clinician gave you** for corrections "
         "(insulin, medication timing, when to call the clinic, and how often to recheck). This app cannot adjust doses for you.\n\n"
-        "General education many teams mention: **hydrate with water**, avoid adding **extra carbs** until you know your plan, "
-        "and **recheck** as directed. If you feel very unwell, are vomiting, see large ketones (if you test), or sugars stay "
-        "very high, **seek urgent care** per your team's instructions.\n\n"
-        "For **food after you've addressed the high** with your care plan: the next meal is a good time for **lower-GI, "
-        "fiber-rich choices** and careful **portion sizing** — similar to everyday steady-glucose eating, not as a substitute for medical steps."
+        "Many care teams also teach general steps such as: **hydrate with water**, avoid adding **extra carbohydrates** until you know your plan, "
+        "and **recheck** as directed. If you feel very unwell, are vomiting, see large ketones (if you test), or your glucose stays "
+        "very high, **seek urgent care** according to your team's instructions.\n\n"
+        "For **food after you have addressed the high** with your care plan: the next meal is a good time for **lower-GI, "
+        "fiber-rich choices** and careful **portion sizes**—similar to everyday steady-glucose eating, **not** as a substitute for medical steps."
     )
 
 
@@ -306,33 +465,77 @@ def build_low_bg_reply() -> str:
     )
 
 
+def _food_examples_sentence(foods: List[dict], limit: int = 5) -> str:
+    bits = []
+    for f in foods[:limit]:
+        gi = f.get("glycemic_index")
+        gi_s = str(gi) if gi is not None else "n/a"
+        bits.append(f"**{f['name']}** (GI {gi_s}, {f.get('fiber', 0)} g fiber)")
+    return "; ".join(bits)
+
+
 def build_stability_reply(foods: List[dict]) -> str:
     base = (
-        "To keep blood sugar steadier, favor foods with a **low glycemic index (about ≤55)**, **more fiber**, and **moderate protein** — "
-        "and watch **portion size** and what you pair with carbs. "
-        "Typical patterns: non-starchy vegetables, beans and lentils, steel-cut or rolled oats, unsweetened yogurt, small portions of nuts, "
-        "and whole grains instead of refined flour when you choose grains."
+        "To help keep blood glucose **steadier**, many people emphasize foods with a **lower glycemic index (often around ≤55)**, **more fiber**, and **enough protein**—and they pay attention to **portion size** and **what they pair with carbohydrates**. "
+        "Common patterns include **non-starchy vegetables**, **beans and lentils**, **steel-cut or rolled oats**, **unsweetened yogurt**, **small portions of nuts**, and **whole grains** instead of refined flour when grains are on the plate."
     )
     if foods:
-        bits = []
-        for f in foods[:5]:
-            gi = f.get("glycemic_index")
-            gi_s = str(gi) if gi is not None else "n/a"
-            bits.append(f"{f['name']} (GI {gi_s}, {f.get('fiber', 0)}g fiber)")
-        return f"{base} Examples from this app's food list: {'; '.join(bits)}."
+        return f"{base}\n\n**Examples** from this app's food list: {_food_examples_sentence(foods)}."
     return base
+
+
+def build_nutrition_continuation_reply(foods: List[dict]) -> str:
+    """Rule-based follow-up when the user asks for 'more' and no LLM reply is available."""
+    intro = (
+        "Here is **more you can use in day-to-day eating**: aim for **regular meals** that combine "
+        "**lean protein**, **high-fiber foods**, and **lower-GI carbohydrates** in portions that match what your care team recommends. "
+        "Spreading carbohydrate across the day, choosing **whole or minimally processed** options when you can, and **limiting sugary drinks** all support steadier glucose for many people."
+    )
+    if foods:
+        return f"{intro}\n\n**Examples** from this app's food list: {_food_examples_sentence(foods)}."
+    return intro
+
+
+def build_fruit_glucose_reply(foods: List[dict]) -> str:
+    body = (
+        "You **can** include **fruit** in a diabetes-friendly pattern; the keys are **how much**, **how often**, and **what you pair it with**. "
+        "**Whole fruit** (with fiber) often affects glucose more gently than **juice** or **dried fruit** in large amounts. "
+        "Many clinicians suggest watching **total carbohydrate** at the meal or snack, not only the word “sugar” on the label. "
+        "Berries, apples, and citrus are often discussed as **portion-friendly** options; **tropical fruits** can still fit if you adjust **portion size** and balance the rest of the plate."
+    )
+    if foods:
+        return f"{body}\n\n**Examples** from this database (use portions your team approves): {_food_examples_sentence(foods)}."
+    return body
+
+
+def build_low_sugar_foods_reply(foods: List[dict]) -> str:
+    intro = (
+        "When people ask for **“low sugar”** foods, it helps to think about **added sugars**, **total carbohydrate**, and **glycemic index** together. "
+        "**Non-starchy vegetables**, **legumes**, and many **whole grains** are often good building blocks because they bring **fiber** and tend to have a **moderate or low GI**. "
+        "If you are comparing packaged items, check **grams of carbohydrate** and **added sugar** per serving, not marketing words alone."
+    )
+    if foods:
+        return f"{intro}\n\n**Examples** from this app's list (numbers are illustrative—confirm portions with your clinician): {_food_examples_sentence(foods)}."
+    return intro
 
 
 def build_food_reply(food: dict) -> str:
     gi = food.get("glycemic_index") or "N/A"
-    df = "Diabetes-friendly." if food.get("diabetes_friendly") else "Eat in moderation."
-    return f"{food['name']}: {food['calories']} cal, glycemic index {gi}, {food.get('carbohydrates', 0)}g carbs, {food.get('fiber', 0)}g fiber. {df}"
+    df = (
+        "It is often considered **diabetes-friendly in appropriate portions**."
+        if food.get("diabetes_friendly")
+        else "**Enjoy in smaller portions** or less often, depending on your overall plan."
+    )
+    return (
+        f"**{food['name']}** — about **{food['calories']} kcal** per serving in this database, "
+        f"**glycemic index {gi}**, **{food.get('carbohydrates', 0)} g carbohydrate**, **{food.get('fiber', 0)} g fiber**. {df}"
+    )
 
 
 def build_fallback_reply(foods: List[dict] | None = None) -> str:
     if foods:
         return build_stability_reply(foods)
     return (
-        "I can help with **specific foods** (e.g. matooke, beans), **glycemic index**, **carbs**, or **meal ideas** for steadier glucose. "
-        "Try naming a food, or ask: 'What foods keep blood sugar stable?'"
+        "I can help with **specific foods** (for example matooke or beans), **glycemic index**, **carbohydrates**, or **meal ideas** for steadier glucose. "
+        "Try naming a food, or ask something like: *What foods help keep blood sugar stable?*"
     )

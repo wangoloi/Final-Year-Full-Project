@@ -53,6 +53,9 @@ ANCHOR_GROUPS: dict[str, list[str]] = {
 }
 
 POS_TRAIN = [
+    "give me more examples",
+    "tell me more about that",
+    "more please",
     "is matooke good for diabetes",
     "which foods keep blood sugar stable",
     "what carbs can I eat with type 2",
@@ -286,8 +289,6 @@ def analyze_message(text: str) -> dict[str, Any]:
 
 def off_topic_reply(_shap_text: str) -> str:
     """User-facing only — no internal SHAP / classifier dump in the chat bubble."""
-    return (
-        "I'm focused on **nutrition, foods, carbs, glycemic ideas, and diabetes-related eating**. "
-        "Your message looks **outside that scope**.\n\n"
-        "Ask about a **specific food**, **meals**, **carbs or GI**, or **glucose-friendly eating**."
-    )
+    from api.modules.chatbot.response_builder import build_off_topic_guidance_reply
+
+    return build_off_topic_guidance_reply()

@@ -278,6 +278,8 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
 
 function Sidebar({ isOpen, onClose }) {
   const { patient } = useClinical()
+  const patientName =
+    patient?.name != null && patient.name !== '' ? String(patient.name) : 'Patient'
 
   const handleNavClick = (e) => {
     const link = e.target.closest('a')
@@ -292,9 +294,9 @@ function Sidebar({ isOpen, onClose }) {
       </div>
       <div className="sidebar-patient-card">
         <div className="sidebar-patient-photo">
-          {patient.photoPlaceholder ? <span>{patient.name.slice(0, 2).toUpperCase()}</span> : null}
+          {patient.photoPlaceholder ? <span>{patientName.slice(0, 2).toUpperCase()}</span> : null}
         </div>
-        <div className="sidebar-patient-name">{patient.name}</div>
+        <div className="sidebar-patient-name">{patientName}</div>
         <div className="sidebar-patient-condition">{patient.condition}</div>
       </div>
 

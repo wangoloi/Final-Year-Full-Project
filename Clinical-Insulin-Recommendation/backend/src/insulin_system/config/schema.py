@@ -16,7 +16,7 @@ def _default_smart_sensor_bundle_dir() -> Path:
     p = os.environ.get("SMART_SENSOR_BUNDLE_DIR", "").strip()
     if p:
         return Path(p)
-    return Path("outputs/smart_sensor_ml/model_bundle")
+    return Path("outputs/clinical_insulin_pipeline/latest")
 
 from ..domain.constants import (
     FAST_ACTING_CARBS_GRAMS,
@@ -332,31 +332,31 @@ class ExplainabilityConfig:
 
 
 def _default_recommendation_content() -> Dict[str, Dict[str, Any]]:
-    """Default ML class -> clinical recommendation content (single source of truth)."""
+    """Default ML class -> clinical recommendation content (person-first, collaborative CDS tone)."""
     return {
         "down": {
-            "summary": "Consider reducing your insulin dose.",
+            "summary": "Consider a modest reduction in meal or correction insulin.",
             "action": "Decrease",
             "magnitude": "Moderate",
-            "detail": "Your readings suggest a lower dose may be appropriate. Check your recent glucose trends and risk of going low before reducing.",
+            "detail": "Based on the pattern entered, a lower dose may be reasonable. Review recent glucose trends and hypoglycemia risk with your care team before changing your plan.",
         },
         "up": {
-            "summary": "Consider increasing your insulin dose.",
+            "summary": "Consider a modest increase in meal or correction insulin.",
             "action": "Increase",
             "magnitude": "Moderate",
-            "detail": "Your readings suggest a higher dose may help. Consider your HbA1c and fasting glucose before increasing.",
+            "detail": "Based on the pattern entered, a higher dose may be appropriate. Confirm against your glucose targets, ketone status, and sick-day rules before increasing.",
         },
         "steady": {
-            "summary": "Keep your current insulin dose.",
+            "summary": "No change to basal or bolus plan is suggested from this snapshot.",
             "action": "Maintain",
             "magnitude": "None",
-            "detail": "No change needed. Continue monitoring as usual.",
+            "detail": "Continue your prescribed regimen and routine monitoring; bring persistent highs or lows to your clinician.",
         },
         "no": {
-            "summary": "No insulin change needed.",
+            "summary": "No structured insulin change is indicated from this assessment.",
             "action": "None",
             "magnitude": "None",
-            "detail": "Your current dose appears appropriate; no change suggested.",
+            "detail": "If symptoms or glucose readings change, repeat the assessment or contact your care team.",
         },
     }
 
@@ -493,8 +493,8 @@ class DashboardConfig:
     """Paths and settings for the visualization dashboard (Step 7)."""
 
     best_model_dir: Path = field(default_factory=lambda: Path("outputs/best_model"))
-    #: Smart Sensor ML joblib bundle (regression + tier mapping; default when present).
-    #: Set SMART_SENSOR_BUNDLE_DIR to point at a pipeline run's ``.../model_bundle`` folder.
+    #: Clinical insulin pipeline output dir (default ``outputs/clinical_insulin_pipeline/latest``).
+    #: Set ``SMART_SENSOR_BUNDLE_DIR`` to override (name kept for compatibility).
     smart_sensor_bundle_dir: Path = field(default_factory=_default_smart_sensor_bundle_dir)
     evaluation_dir: Path = field(default_factory=lambda: Path("outputs/evaluation"))
     explainability_dir: Path = field(default_factory=lambda: Path("outputs/explainability"))

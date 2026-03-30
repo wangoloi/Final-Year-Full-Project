@@ -1,6 +1,6 @@
 # Glocusense (Meal Plan) — API + React dev servers
 # Run: .\scripts\start_full_system.ps1  (from repo root, or from anywhere)
-# FastAPI: run.py → port 8000 | Vite: frontend → port 5173
+# FastAPI: run.py → port 8001 | Vite: frontend → port 5175 (see frontend/vite.config.js)
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -18,8 +18,8 @@ if (-not (Test-Path "node_modules")) {
 }
 Pop-Location
 
-Write-Host "[3/3] Starting API (8000) and frontend (5173)..." -ForegroundColor Cyan
-Write-Host "Open: http://localhost:5173  |  API docs: http://127.0.0.1:8000/docs" -ForegroundColor Yellow
+Write-Host "[3/3] Starting API (8001) and frontend (5175)..." -ForegroundColor Cyan
+Write-Host "Open: http://localhost:5175  |  API docs: http://127.0.0.1:8001/docs" -ForegroundColor Yellow
 Write-Host "Press Ctrl+C in each window to stop.`n" -ForegroundColor Gray
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location -LiteralPath '$Root'; python backend\run.py"

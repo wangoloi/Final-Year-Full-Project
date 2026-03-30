@@ -16,7 +16,7 @@ services:
   meal-api:
     build:
       context: ./Meal-Plan-System
-      dockerfile: Dockerfile.api
+      dockerfile: docker/Dockerfile.api
     ports:
       - "8081:8001"
     environment:
@@ -43,7 +43,7 @@ services:
   meal-web:
     build:
       context: ./Meal-Plan-System
-      dockerfile: Dockerfile.web
+      dockerfile: docker/Dockerfile.web
       args:
         VITE_ALLOWED_GLUCOSENSE_ORIGINS: ${PUBLIC_GLUCOSENSE_URL:-http://localhost:8080}
     ports:
@@ -54,7 +54,7 @@ services:
 
   glucosense:
     build:
-      context: ./Glucosense/Glucosense
+      context: ./Clinical-Insulin-Recommendation
       dockerfile: Dockerfile
       args:
         VITE_MEAL_PLAN_URL: ${PUBLIC_MEAL_WEB_URL:-http://localhost:8082}

@@ -10,8 +10,28 @@ from api.core import config
 
 logger = logging.getLogger(__name__)
 
-_rows: list[dict[str, str]] | None = None
+# Raw CSV rows after successful read (or [] if file missing / read error).
+_raw_rows: list[dict[str, str]] | None = None
 _load_error: str | None = None
+# True after the first load attempt — avoids caching "empty" before CSV path is valid (order-dependent tests).
+_loaded: bool = False
+
+
+def reset_sensor_demo_cache() -> None:
+    """Clear in-memory cache (used by tests; safe to call in dev)."""
+    global _raw_rows, _load_error, _loaded
+    _raw_rows = None
+    _load_error = None
+    _loaded = False
+
+
+def _normalize_row_keys(row: dict[str, str]) -> dict[str, str]:
+    """Strip BOM / whitespace from CSV header keys (Windows Excel sometimes adds BOM)."""
+    out: dict[str, str] = {}
+    for k, v in row.items():
+        nk = (k or "").strip().lstrip("\ufeff")
+        out[nk] = (v or "").strip()
+    return out
 
 
 def _parse_float(x: str) -> float | None:
@@ -30,13 +50,14 @@ def _parse_int(x: str) -> int | None:
 
 def load_rows() -> tuple[list[dict[str, Any]], str | None]:
     """Return (normalized rows, error message if file missing)."""
-    global _rows, _load_error
-    if _rows is not None:
+    global _raw_rows, _load_error, _loaded
+    if _loaded:
         return _normalize_cached(), _load_error
 
+    _loaded = True
     path = Path(config.SMART_SENSOR_CSV_PATH)
     if not path.is_file():
-        _rows = []
+        _raw_rows = []
         _load_error = f"CSV not found at {path}"
         logger.warning(_load_error)
         return [], _load_error
@@ -46,21 +67,22 @@ def load_rows() -> tuple[list[dict[str, Any]], str | None]:
         with path.open(newline="", encoding="utf-8", errors="replace") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                raw.append({k: (v or "").strip() for k, v in row.items()})
+                raw.append(_normalize_row_keys(row))
     except OSError as e:
-        _rows = []
+        _raw_rows = []
         _load_error = str(e)
         return [], _load_error
 
-    _rows = raw
+    _raw_rows = raw
     _load_error = None
     return _normalize_cached(), None
 
 
 def _normalize_cached() -> list[dict[str, Any]]:
-    assert _rows is not None
+    assert _loaded
+    assert _raw_rows is not None
     out: list[dict[str, Any]] = []
-    for r in _rows:
+    for r in _raw_rows:
         out.append(
             {
                 "patient_id": r.get("Patient_ID", ""),

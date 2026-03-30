@@ -2,7 +2,6 @@
  * Recommendation result display.
  * Single responsibility: render recommendation cards and actions.
  */
-import { RISK_LABELS } from '../FeedbackModal'
 import {
   CONFIDENCE_CAUTION_THRESHOLD_PCT,
   CONFIDENCE_HIGH_PCT,
@@ -31,14 +30,6 @@ export default function RecommendationResult({
   const certaintyTier = confidence >= CONFIDENCE_HIGH_PCT ? 'High' : confidence >= CONFIDENCE_MEDIUM_PCT ? 'Medium' : 'Low'
   return (
     <>
-      <section className="dashboard-section" aria-label="Primary action">
-        <PrimaryActionCard result={result} />
-      </section>
-
-      {result.risk_flags?.length > 0 && (
-        <RiskFlagsCard riskFlags={result.risk_flags} />
-      )}
-
       <section className="dashboard-section dashboard-insight-row">
         <CurrentReadingCard result={result} form={form} />
         <InsulinRecommendationCard result={result} clinicalSummary={clinicalSummary} confidence={confidence} isCaution={isCaution} certaintyTier={certaintyTier} />
@@ -62,35 +53,6 @@ export default function RecommendationResult({
   )
 }
 
-function PrimaryActionCard({ result }) {
-  return (
-    <div className={`card card-primary-action ${result.is_high_risk ? 'card-primary-action--critical' : ''}`}>
-      <h2 className="card-heading" style={{ marginBottom: '0.5rem' }}>Recommended action</h2>
-      <p className="primary-action-text" role="status">
-        {result.recommended_action || result.recommendation_summary}
-      </p>
-      {result.is_high_risk && (
-        <p className="primary-action-note" style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--chart-low)' }}>
-          {result.high_risk_reason}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function RiskFlagsCard({ riskFlags }) {
-  return (
-    <div className="alert alert-critical" role="alert" style={{ marginBottom: '1rem', borderLeft: '4px solid #c62828', padding: '1rem', background: 'rgba(198, 40, 40, 0.08)', borderRadius: 8 }}>
-      <strong>Risk flags:</strong>
-      <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
-        {riskFlags.map((f, i) => (
-          <li key={i}>{RISK_LABELS[f] || f}</li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
 function CurrentReadingCard({ result, form }) {
   return (
     <div className="card card-ui-recommendation" style={{ gridColumn: '1 / -1' }}>
@@ -104,8 +66,6 @@ function CurrentReadingCard({ result, form }) {
         <dd>{result.iob_display || 'Not provided'}</dd>
         <dt>What the readings suggest</dt>
         <dd className="ui-interpretation">{result.system_interpretation || result.context_summary || result.recommendation_summary}</dd>
-        <dt>Recommended Action</dt>
-        <dd className="ui-action"><strong>{result.recommended_action || result.recommendation_summary}</strong></dd>
       </dl>
     </div>
   )
@@ -178,11 +138,6 @@ function AdjustmentAdviceCard({ result }) {
           </p>
         )}
         {result.recommendation_detail && <p className="advice-detail">{result.recommendation_detail}</p>}
-        {result.is_high_risk && (
-          <div className="advice-flag">
-            <strong>Flag for review:</strong> {result.high_risk_reason || 'System less certain than usual.'}
-          </div>
-        )}
       </div>
     </div>
   )

@@ -11,7 +11,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    port: 5174,
+    // 5175 matches GlucoSense VITE_MEAL_PLAN_URL and scripts/start-integrated.ps1
+    port: 5175,
     strictPort: true,
     proxy: {
       '/api': {

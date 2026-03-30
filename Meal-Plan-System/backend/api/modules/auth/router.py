@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from api.shared.database import get_db
@@ -90,6 +91,16 @@ def login(data: LoginInput, db: Session = Depends(get_db)):
         raise
     except AppError as e:
         raise to_http_exception(e)
+    except OperationalError as e:
+        logger.exception("Login failed: database error")
+        raise HTTPException(
+            503,
+            "Database error (locked, missing migration, or bad file). "
+            "Stop other API instances using the same DB, or reset %LOCALAPPDATA%\\Glocusense\\glocusense.db and restart.",
+        ) from e
+    except SQLAlchemyError as e:
+        logger.exception("Login failed: SQLAlchemy error")
+        raise HTTPException(503, "Database error. Try again in a few seconds.") from e
     except Exception as e:
         logger.exception("Login failed")
         raise HTTPException(401, str(e)) from e

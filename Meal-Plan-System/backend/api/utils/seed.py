@@ -93,6 +93,23 @@ def seed_fallback(db: Session) -> None:
 def build_rag_store(db: Session) -> None:
     """Build Chroma vector index over foods for chatbot RAG (best-effort)."""
     try:
+        import chromadb  # noqa: F401 — declared in backend/requirements.txt
+    except ImportError:
+        logger.warning(
+            "Chatbot RAG skipped: chromadb is not installed. "
+            "From Meal-Plan-System/backend run: pip install -r requirements.txt"
+        )
+        return
+    try:
+        from sentence_transformers import SentenceTransformer  # noqa: F401 — must match huggingface_hub (use v3+)
+    except ImportError as e:
+        logger.warning(
+            "Chatbot RAG skipped: sentence-transformers missing or incompatible with huggingface_hub (%s). "
+            "From Meal-Plan-System/backend: pip install -U \"sentence-transformers>=3.0.0,<4\"",
+            e,
+        )
+        return
+    try:
         from api.modules.chatbot.rag_store import rebuild_rag_index
 
         n = rebuild_rag_index()

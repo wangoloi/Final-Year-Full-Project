@@ -4,7 +4,7 @@ This workspace can run as **three Docker services**: clinical portal + APIs on t
 
 ## ML and training artifacts
 
-Docker **does not** run the full training pipeline on container start. The GlucoSense image expects an **inference bundle** under `outputs/best_model/` (built offline with `Glucosense/Glucosense` scripts) unless you mount a volume with a pre-trained bundle. The **Smart Sensor** coursework-style pipeline (`scripts/run_smart_sensor_ml.py`) writes to `outputs/smart_sensor_ml/` and is documented in **[SYSTEM_PIPELINE.md](./SYSTEM_PIPELINE.md)**.
+Docker **does not** run the full training pipeline on container start. The GlucoSense image expects an **inference bundle** under `outputs/best_model/` (built offline with `Clinical-Insulin-Recommendation` scripts) unless you mount a volume with a pre-trained bundle. The **Smart Sensor** coursework-style pipeline (`scripts/run_smart_sensor_ml.py`) writes to `outputs/smart_sensor_ml/` and is documented in **[SYSTEM_PIPELINE.md](./SYSTEM_PIPELINE.md)**.
 
 ---
 
@@ -51,7 +51,7 @@ docker compose --env-file .env.deploy down
 
 ## Building without Compose
 
-- **GlucoSense image** (from `Glucosense/Glucosense`):
+- **GlucoSense image** (from `Clinical-Insulin-Recommendation`):
 
   ```bash
   docker build -t glucosense \
@@ -61,7 +61,7 @@ docker compose --env-file .env.deploy down
     .
   ```
 
-- **Meal API / Meal Web** — use `Dockerfile.api` and `Dockerfile.web` under `Meal-Plan-System/` as in `docker-compose.yml`.
+- **Meal API / Meal Web** — use `Meal-Plan-System/docker/Dockerfile.api` and `Meal-Plan-System/docker/Dockerfile.web` (build context `Meal-Plan-System/`) as in `docker-compose.yml`.
 
 ## VS Code / Cursor
 

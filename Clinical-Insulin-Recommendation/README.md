@@ -1,94 +1,80 @@
 # GlucoSense Clinical Support
 
-**Type 1 Diabetes Management** – Insulin dosage prediction, recommendation, and explainability as a clinical decision support system.
+**Type 1 diabetes management** — insulin guidance, recommendations, and clinical decision support (CDS).
 
 ---
 
 ## Clinical safety notice
 
-- **This system is a clinical decision support tool, not an autonomous diagnostic system.**
-- **All recommendations must be reviewed by a qualified healthcare professional.**
-- The system should **not** be used as the sole basis for treatment decisions.
-- Regular validation against clinical outcomes is required.
-- Model performance should be monitored continuously in production.
+- This system is **clinical decision support**, not autonomous diagnosis.
+- All recommendations must be reviewed by a **qualified healthcare professional**.
+- Do not use as the sole basis for treatment decisions.
 
 ---
 
 ## Overview
 
-GlucoSense integrates:
+GlucoSense combines:
 
-1. **Prediction** – Model inference from patient features (glucose, HbA1c, BMI, etc.) to insulin category (down / up / steady / no).
-2. **Recommendation** – Clinical dosage suggestions with magnitude, confidence, and high-risk flagging.
-3. **Explainability** – SHAP-based drivers and counterfactual scenarios.
+1. **Prediction / recommendation** — FastAPI backend with validated patient input and structured responses.
+2. **Web UI** — React (Vite) clinician app in **`frontend/`**.
+3. **Offline training** — **`clinical_insulin_pipeline`** (insulin dose regression, 0–10 IU) under **`backend/src/clinical_insulin_pipeline/`**, run from the repo root via **`run_clinical_insulin_pipeline.py`**.
 
-The **backend** is the FastAPI engine in **`backend/`** (saved model + preprocessing, recommendation generator, explainability). The **frontend** is the React (Vite) web UI in **`frontend/`**.
-
-**Layout:** see **[docs/STRUCTURE.md](docs/STRUCTURE.md)**.
+**Layout:** **[docs/STRUCTURE.md](docs/STRUCTURE.md)**.
 
 ---
 
 ## Requirements
 
 - Python 3.9+
-- See `requirements.txt` (pandas, numpy, scikit-learn, xgboost, shap, fastapi, uvicorn, pydantic, joblib, etc.).
+- Node.js 18+ (frontend)
+- Dependencies: **`requirements.txt`**
 
 ---
 
 ## Quick start
 
-### 1. Train and save the best model
+### 1. Install
 
 ```bash
 pip install -r requirements.txt
-python run_evaluation.py
-# or: python scripts/pipeline/run_evaluation.py
-# Default training CSV: data/SmartSensor_DiabetesMonitoring.csv (override with --data path/to/file.csv)
+cd frontend && npm install && cd ..
 ```
 
-This saves the best model (by F1-weighted) to `outputs/best_model/`.
+### 2. Train the clinical insulin pipeline (optional)
 
-**Smart Sensor dataset pipeline (Prompt spec):** trains tabular + optional LSTM models on `data/SmartSensor_DiabetesMonitoring.csv`, writes metrics, plots, `model_bundle/`, and **`outputs/smart_sensor_ml/Smart_Sensor_ML_Report.pdf`**.
+From the **Clinical-Insulin-Recommendation** root:
 
 ```bash
-python scripts/run_smart_sensor_ml.py --skip-lstm   # add TensorFlow and omit --skip-lstm for LSTM
+python run_clinical_insulin_pipeline.py
 ```
 
-### 2. Run the API (FastAPI backend)
-
-From the **repository root**:
+Faster smoke (skips heavy plots):
 
 ```bash
-uvicorn app:app --host 0.0.0.0 --port 8000
-# or explicitly:
-uvicorn backend.app:app --host 0.0.0.0 --port 8000
+python run_clinical_insulin_pipeline.py --skip-learning-curve --skip-shap
 ```
 
-- **POST /api/predict** – Get insulin prediction (JSON body: patient fields).
-- **POST /api/explain** – Get explanation for a prediction.
-- **POST /api/recommend** – Get full recommendation with reasoning.
-- **GET /api/model-info** – Model metadata and performance.
-- **GET /api/feature-importance** – Global feature importance.
+Writes artifacts under **`outputs/clinical_insulin_pipeline/latest/`**. The API may still use a separate bundle under **`outputs/best_model/`** depending on deployment; see **`outputs/README.md`**.
 
-API docs: http://localhost:8000/docs
-
-### 3. Run the frontend (clinician UI)
+### 3. Run the API
 
 ```bash
-cd frontend && npm install && npm start
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Open http://localhost:5173. Use **Dashboard** to enter patient data and get a recommendation; **Records** to view stored prediction records (SQLite); **Model info** to view the current model.
+Open **http://localhost:8000/docs** for OpenAPI.
 
-**Run guide:** **[HOW_TO_RUN.md](HOW_TO_RUN.md)** (quick steps) · **[docs/RUN.md](docs/RUN.md)** (full detail + troubleshooting).
-
-### 4. Production build (frontend + API)
+### 4. Run the frontend
 
 ```bash
-cd frontend && npm run build
-# Then run API; it serves the built frontend at /
-uvicorn app:app --host 0.0.0.0 --port 8000
+cd frontend
+npm start
 ```
+
+Starts the API on **:8000** (if configured in `package.json`), then Vite. Or run **`npm run dev`** with the API already running.
+
+**More detail:** **[HOW_TO_RUN.md](HOW_TO_RUN.md)** · **[docs/RUN.md](docs/RUN.md)**.
 
 ---
 
@@ -96,47 +82,28 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 | Location | Purpose |
 |----------|---------|
-| **`app.py`** | FastAPI entrypoint (API + optional static SPA). |
-| **`data/`** | Datasets (default: `SmartSensor_DiabetesMonitoring.csv`). |
-| **`docs/`** | Documentation — **`ARCHITECTURE.md`**, **`RUN.md`**, guides, notes. |
-| **Integrated workspace** | From workspace root: **`../../SYSTEM_PIPELINE.md`**, **`../../ARCHITECTURE.md`** (GlucoSense + Meal Plan + ML flows). |
-| **`frontend/`** | React (Vite) clinician UI. |
-| **`scripts/pipeline/`** | ML / evaluation entrypoints (`run_evaluation.py`, `run_pipeline.py`, …). |
-| **`scripts/notebook/`** | Execute development notebook end-to-end (`execute_development_notebook.py`). |
-| **`scripts/windows/`** | PowerShell/Batch helpers (`run_dev.ps1`, `run_all.ps1`, …). |
-| **`scripts/`** | Other utilities (`launcher.py`, deploy, cost-sensitive eval, …). |
-| **`src/insulin_system/`** | Core logic: API, data_processing, models, persistence, explainability, recommendation, safety, storage. |
-| **`backend/`** | Alternate FastAPI app (cohort dashboard API); main UI uses `app.py`. |
-| **`tests/`** | Pytest; integration checks under `tests/integration/`. |
-| **`run_evaluation.py`**, **`run_pipeline.py`**, **`launcher.py`** (repo root) | Thin shims that forward to `scripts/` (optional convenience). |
-| **`requirements/`** | Extra dependency lists (e.g. `dashboard.txt` for Streamlit dashboard). |
-
----
-
-## Input validation
-
-- Patient input is validated via Pydantic (`PatientInput`). Missing optional fields may be imputed by the pipeline.
-- Invalid or missing required structure returns 400 with a clear error message.
+| **`app.py`** | Shim: `uvicorn app:app` from repo root. |
+| **`backend/app.py`** | FastAPI application. |
+| **`backend/src/insulin_system/`** | API, storage, recommendations, safety. |
+| **`backend/src/clinical_insulin_pipeline/`** | Training / evaluation CLI for dose regression. |
+| **`frontend/`** | React SPA. |
+| **`data/`** | Datasets (e.g. `SmartSensor_DiabetesMonitoring.csv`). |
+| **`outputs/`** | Models, audit, monitoring DB — see **`outputs/README.md`**. |
+| **`config/`** | Clinical JSON thresholds / guidelines. |
+| **`scripts/`** | Launchers, pipeline entry, Windows helpers — **`scripts/README.md`**. |
+| **`tests/`** | Pytest. |
+| **`docs/`** | Documentation index — **`docs/README.md`**. |
 
 ---
 
 ## Audit and safety
 
-- **Database**: Prediction and recommendation records are stored in SQLite at `outputs/glucosense.db`; the UI **Records** page and **GET /api/records** list them.
-- **Audit log**: Every prediction and recommendation is also logged to `outputs/audit/predictions.jsonl` (timestamp, endpoint, predicted_class, confidence, is_high_risk).
-- **High-risk flag**: Low confidence or high uncertainty triggers a flag for clinician review in the response and UI.
-- **Disclaimer**: Every API response includes the clinical disclaimer; the frontend displays it with the recommendation.
-
----
-
-## Limitations
-
-- Model performance depends on training data and may not generalize to all populations.
-- Bias and fairness should be evaluated per deployment (e.g. across demographic groups if available).
-- Out-of-distribution inputs may produce unreliable predictions; confidence and uncertainty are provided to support review.
+- Operational data and records: SQLite (default under **`outputs/`**; see runbook).
+- Audit log: **`outputs/audit/`** (JSONL).
+- Responses include clinical disclaimers; treat high-risk flags as requiring review.
 
 ---
 
 ## License and use
 
-For use in clinical or research settings, ensure compliance with local regulations and institutional review. All treatment decisions remain the responsibility of qualified healthcare professionals.
+For clinical or research use, comply with local regulations and institutional review. Treatment decisions remain the responsibility of qualified healthcare professionals.

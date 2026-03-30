@@ -63,7 +63,7 @@ flowchart LR
 
 ## 3. GlucoSense — architecture
 
-### 3.1 Frontend (`Glucosense/Glucosense/frontend/`)
+### 3.1 Frontend (`Clinical-Insulin-Recommendation/frontend/`)
 
 - **Stack:** React 18, React Router 6, Vite 5, Recharts, jsPDF (reports).
 - **Entry:** `main.jsx` wraps the app with `ClinicalProvider` (global session, theme, patients, notifications, alerts preview, recent metrics).
@@ -76,7 +76,7 @@ flowchart LR
 - **API access:** `apiFetch` and service modules (`clinicalApi.js`, `dashboardApi.js`, `patientsApi.js`, etc.) use relative `/api` (Vite proxy to FastAPI in dev).
 - **Meal integration:** `MealPlanSsoBridge` + `utils/mealPlanSso.js` provision a JWT from the meal API and `postMessage` it into the embedded iframe so users are not prompted to log in again inside the meal app. Constants in `constants.js` define meal URLs (`VITE_MEAL_PLAN_URL`, `VITE_MEAL_PLAN_API_URL`).
 
-### 3.2 Backend (`Glucosense/Glucosense/backend/`)
+### 3.2 Backend (`Clinical-Insulin-Recommendation/backend/`)
 
 - **Framework:** FastAPI (`backend/app.py`), CORS open in dev; optional `GLUCOSENSE_API_KEY` (`X-API-Key`) for locking down the API.
 - **Lifespan:** SQLite init/seed; background thread preloads the **inference bundle** so the first `/api/recommend` is faster.
@@ -96,10 +96,9 @@ flowchart LR
 
 ### 3.3 ML and offline tooling
 
-- **Runtime inference (clinical CDS):** `engine.py` loads a **best model bundle** from `outputs/best_model/` (`DashboardConfig` / `load_best_model`). Supports prediction probabilities, optional SHAP-backed explanations when background data is available, and a **rich recommendation payload** in `recommend_response_builder`. That bundle is produced by the **legacy** `insulin_system` training path (`DataProcessingPipeline`, `ModelTrainer`, scripts under `scripts/pipeline/`), which expects the **legacy CSV schema** documented in `insulin_system/config/schema.py`.
-- **Smart Sensor ML (offline, separate package):** `backend/src/smart_sensor_ml/` implements the end-to-end Prompt-style pipeline on **`data/SmartSensor_DiabetesMonitoring.csv`** (insulin-dose **tiers**, patient-group splits, tabular models + optional TensorFlow LSTM). Run **`python scripts/run_smart_sensor_ml.py`** from `Glucosense/Glucosense`; artifacts go to **`outputs/smart_sensor_ml/`** (including **`Smart_Sensor_ML_Report.pdf`**). This is **not** wired automatically into `POST /api/recommend` unless you add an integration layer.
-- **Clinical improvement pipeline:** `backend/src/clinical_ml_pipeline/` (full_pipeline, calibration, threshold optimization) coordinates with the same legacy feature pipeline.
-- **Data layout:** `data/`, `outputs/`, `config/` at the GlucoSense project root (see `backend/app.py` comments). Default data file name is **`SmartSensor_DiabetesMonitoring.csv`**; see **`data/README.md`** for legacy vs Smart Sensor usage.
+- **Runtime inference (clinical CDS):** `engine.py` loads a **best model bundle** from `outputs/best_model/` when **`inference_bundle.joblib`** exists (`DashboardConfig` / `load_best_model`). Explanations and full ML paths may be limited if the bundle is missing or stubbed; see `insulin_system` routes and `bundle.py`.
+- **Clinical insulin pipeline (offline):** `Clinical-Insulin-Recommendation/backend/src/clinical_insulin_pipeline/` trains **dose regression** (0–10 IU) on **`data/SmartSensor_DiabetesMonitoring.csv`**. Run **`python run_clinical_insulin_pipeline.py`** from the GlucoSense project root; artifacts go to **`outputs/clinical_insulin_pipeline/latest/`**. Integrating that bundle into **`POST /api/recommend`** is optional and requires an explicit adapter.
+- **Data layout:** `data/`, `outputs/`, `config/` at the GlucoSense project root. Default training CSV: **`SmartSensor_DiabetesMonitoring.csv`** — see **`Clinical-Insulin-Recommendation/data/README.md`**.
 
 ### 3.4 Persistence (GlucoSense)
 
@@ -120,8 +119,8 @@ flowchart LR
 - **Database:** SQLAlchemy + SQLite (path configurable; Docker uses `/data/glocusense.db`).
 - **Auth:** JWT-based; supports **embed SSO** using a shared secret (`GLUCOSENSE_EMBED_KEY` in Docker / env) so GlucoSense can mint or exchange session tokens for the iframe user.
 - **Health:** `GET /health` and `GET /api/health` (identified as `glocusense-meal-plan`).
-- **Food search:** Hybrid lookup over SQLite + fuzzy matching; when **`TYPESENSE_HOST`** (and API key if required) is set, search can use **Typesense** for faster typo-tolerant retrieval (see `backend/TYPESENSE.md`).
-- **Nutrition chatbot (`/api/chatbot/message`):** When **`OPENAI_API_KEY`** or **`OLLAMA_HOST`** is configured, replies use **RAG + LLM**: **Chroma** (persistent vector store over food records, sentence-transformer embeddings) plus the same hybrid food search chunks as context, then an OpenAI- or Ollama-backed model. If no LLM is configured or `CHATBOT_USE_LEGACY_ONLY=true`, behaviour falls back to the original **rule-based** response builder. See `backend/CHATBOT.md`.
+- **Food search:** Hybrid lookup over SQLite + fuzzy matching; when **`TYPESENSE_HOST`** (and API key if required) is set, search can use **Typesense** for faster typo-tolerant retrieval (see `Meal-Plan-System/docs/guides/TYPESENSE.md`).
+- **Nutrition chatbot (`/api/chatbot/message`):** When **`OPENAI_API_KEY`** or **`OLLAMA_HOST`** is configured, replies use **RAG + LLM**: **Chroma** (persistent vector store over food records, sentence-transformer embeddings) plus the same hybrid food search chunks as context, then an OpenAI- or Ollama-backed model. If no LLM is configured or `CHATBOT_USE_LEGACY_ONLY=true`, behaviour falls back to the original **rule-based** response builder. See `Meal-Plan-System/docs/guides/CHATBOT.md`.
 
 ### 4.2 Frontend (`Meal-Plan-System/frontend/`)
 
@@ -184,10 +183,10 @@ Further production notes: `DEPLOY.md`.
 | `SYSTEM_PIPELINE.md` | **End-to-end app + ML pipeline** — runtime flows, training paths, data artifacts |
 | `DEPLOY.md` | Docker / HTTPS / secrets checklist |
 | `ARCHITECTURE.md` | This file — structure and behaviour |
-| `Glucosense/Glucosense/docs/README.md` | Index of GlucoSense-only docs |
+| `Clinical-Insulin-Recommendation/docs/README.md` | Index of GlucoSense-only docs |
 | `Meal-Plan-System/.../docs/README.md` | Index of Meal Plan docs |
-| `Meal-Plan-System/.../backend/CHATBOT.md` | Meal chatbot: RAG + LLM env and troubleshooting |
-| `Meal-Plan-System/.../backend/TYPESENSE.md` | Optional Typesense for meal food search |
+| `Meal-Plan-System/docs/guides/CHATBOT.md` | Meal chatbot: RAG + LLM env and troubleshooting |
+| `Meal-Plan-System/docs/guides/TYPESENSE.md` | Optional Typesense for meal food search |
 | `Meal-Plan-System/.../backend/knowledge/README.md` | Optional clinical prompt supplement (PDF → `.txt`) for the meal chatbot |
 
 ---

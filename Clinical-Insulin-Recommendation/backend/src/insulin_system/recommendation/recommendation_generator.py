@@ -17,6 +17,7 @@ from ..config.clinical_config import (
     get_uganda_children_under_5,
     get_uganda_basal_bolus_split,
 )
+from ..api.helpers.clinical_narrative import drivers_preamble_sentence, tier_probs_ambiguous
 from ..domain.constants import (
     FAST_ACTING_CARBS_GRAMS,
     FAST_ACTING_CARBS_LEVEL2_GRAMS,
@@ -304,8 +305,13 @@ class RecommendationGenerator:
         self._cfg = config or _recommendation_config_from_json()
         self._rec_map = getattr(self._cfg, "recommendation_content", None) or {}
 
-    def is_high_risk(self, confidence: float, entropy: float) -> Tuple[bool, Optional[str]]:
-        """Flag for clinician review: low confidence or high uncertainty (from config thresholds). Safe for None/NaN."""
+    def is_high_risk(
+        self,
+        confidence: float,
+        entropy: float,
+        probability_breakdown: Optional[Dict[str, float]] = None,
+    ) -> Tuple[bool, Optional[str]]:
+        """Flag for clinician review: low confidence, high uncertainty, or ambiguous dose tiers."""
         reasons = []
         conf = confidence if confidence is not None else 0.0
         ent = entropy if entropy is not None else 0.0
@@ -339,6 +345,8 @@ class RecommendationGenerator:
             reasons.append(f"System less certain than usual ({conf:.0%} certainty)")
         if ent > thresh_ent:
             reasons.append("Several treatment options could fit; please review the full picture")
+        if probability_breakdown and tier_probs_ambiguous(probability_breakdown):
+            reasons.append("Two or more dose tiers remain similarly plausible; confirm with your clinician.")
         if reasons:
             return True, "; ".join(reasons)
         return False, None
@@ -504,6 +512,8 @@ class RecommendationGenerator:
         # Assist the clinician: always provide the suggestion; flag for review when certainty is low
         summary = rec.get("summary", "")
         detail = rec.get("detail", "")
+        if top_driver_names:
+            detail = f"{detail.strip()}{drivers_preamble_sentence(list(top_driver_names))}"
         if conf_val < thresh:
             summary = f"{summary} Consider with caution: the system is less certain than usual ({conf_val:.0%} certainty)."
             detail = f"{detail} Use your clinical judgment: the system is less sure about this suggestion. Review the patient's full picture before deciding."
@@ -542,7 +552,7 @@ class RecommendationGenerator:
             meal_bolus_units=meal_bolus_units,
             correction_dose_units=correction_dose_units,
         )
-        is_risk, reason = self.is_high_risk(confidence, uncertainty_entropy)
+        is_risk, reason = self.is_high_risk(conf_val, ent_val, probability_breakdown)
         if patient_dict and patient_dict.get("cgm_sensor_error") is True:
             is_risk = True
             reason = (reason or "") + " CGM sensor error reported. Manual finger-stick check required."

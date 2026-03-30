@@ -4,12 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node ./node_modules/vite/bin/vite.js",
-    "dev:api": "node --max-old-space-size=4096 ./scripts/start-api.cjs",
-    "dev:full": "node --max-old-space-size=4096 ./node_modules/concurrently/dist/bin/concurrently.js -k -n api,web -c blue,cyan \"npm run dev:api\" \"node --max-old-space-size=4096 ./scripts/start-web.cjs\"",
-    "start": "npm run dev:full",
-    "build": "node ./node_modules/vite/bin/vite.js build",
-    "preview": "node ./node_modules/vite/bin/vite.js preview"
+    "dev": "vite",
+    "dev:vite": "vite",
+    "dev:api": "node --max-old-space-size=1536 ./scripts/start-api.cjs",
+    "dev:fast": "node --max-old-space-size=1536 ./node_modules/concurrently/dist/bin/concurrently.js -k -n api,web -c blue,cyan \"npm run dev:api\" \"npm run dev:vite\"",
+    "dev:full": "node --max-old-space-size=1536 ./node_modules/concurrently/dist/bin/concurrently.js -k -n api,web -c blue,cyan \"npm run dev:api\" \"node --max-old-space-size=1536 ./scripts/start-web.cjs\"",
+    "start": "npm run dev:fast",
+    "start:full": "npm run dev:full",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "jspdf": "^4.2.0",

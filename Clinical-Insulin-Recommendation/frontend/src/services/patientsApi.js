@@ -13,6 +13,18 @@ export async function fetchPatients() {
   return { patients: data.patients || [], count: data.count || 0 }
 }
 
+export async function fetchDeletedPatients() {
+  const res = await apiFetch(`${API}/patients/deleted`)
+  if (!res.ok) return { patients: [], count: 0 }
+  const data = await res.json()
+  return { patients: data.patients || [], count: data.count || 0 }
+}
+
+/** @deprecated use fetchDeletedPatients */
+export async function fetchArchivedPatients() {
+  return fetchDeletedPatients()
+}
+
 export async function fetchPatient(id) {
   const res = await apiFetch(`${API}/patients/${id}`)
   if (!res.ok) return null
@@ -42,6 +54,40 @@ export async function updatePatient(id, payload) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     return { ok: false, error: err.detail || 'Failed to update patient' }
+  }
+  return { ok: true }
+}
+
+/** Soft-delete: patient is removed from the active list; restore from Deleted below. */
+export async function deletePatient(id) {
+  const res = await apiFetch(`${API}/patients/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Failed to delete patient' }
+  }
+  return { ok: true }
+}
+
+/** @deprecated use deletePatient */
+export async function archivePatient(id) {
+  return deletePatient(id)
+}
+
+export async function restorePatient(id) {
+  const res = await apiFetch(`${API}/patients/${id}/restore`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Failed to restore patient' }
+  }
+  return { ok: true }
+}
+
+/** Permanently remove patient and linked assessment data. */
+export async function purgePatient(id) {
+  const res = await apiFetch(`${API}/patients/${id}/permanent`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Failed to permanently delete patient' }
   }
   return { ok: true }
 }

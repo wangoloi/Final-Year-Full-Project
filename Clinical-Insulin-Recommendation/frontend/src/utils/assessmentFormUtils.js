@@ -25,6 +25,38 @@ export const NUMERIC_OPTIONAL_KEYS = ['physical_activity', 'insulin_sensitivity'
 export const DOSING_CONTEXT_KEYS = ['iob', 'anticipated_carbs', 'glucose_trend']
 export const DEFAULT_AGE = '30'
 
+/**
+ * Whole-number age from patient registration date of birth (YYYY-MM-DD).
+ * Returns null if DOB missing or out of allowed range.
+ */
+export function ageFromDateOfBirth(dateOfBirth) {
+  if (!dateOfBirth || typeof dateOfBirth !== 'string') return null
+  const m = String(dateOfBirth).trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const day = Number(m[3])
+  const birth = new Date(y, mo - 1, day)
+  if (Number.isNaN(birth.getTime())) return null
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const md = today.getMonth() - birth.getMonth()
+  if (md < 0 || (md === 0 && today.getDate() < birth.getDate())) age -= 1
+  if (age < AGE_MIN || age > AGE_MAX) return null
+  return age
+}
+
+/** Map stored patient gender to assessment dropdown values. */
+export function normalizeGenderForAssessment(g) {
+  if (!g || typeof g !== 'string') return null
+  const t = g.trim()
+  if (GENDER_OPTIONS.includes(t)) return t
+  const lower = t.toLowerCase()
+  if (lower === 'm' || lower === 'male') return 'Male'
+  if (lower === 'f' || lower === 'female') return 'Female'
+  return null
+}
+
 export function initialForm() {
   const o = { patient_id: '', medication_name: '' }
   o.age = DEFAULT_AGE

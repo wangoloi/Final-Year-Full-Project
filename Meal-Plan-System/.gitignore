@@ -9,6 +9,10 @@ backend/instance/
 node_modules/
 dist/
 
+# Offline ML pipeline output (keep folder; regenerate with models/scripts/run_pipeline.py)
+models/output/*
+!models/output/.gitkeep
+
 # Local / generated
 venv/
 .venv/

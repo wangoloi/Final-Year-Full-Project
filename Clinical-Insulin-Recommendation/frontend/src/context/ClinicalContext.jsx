@@ -105,8 +105,11 @@ export function ClinicalProvider({ children }) {
       if (!data) return
       setPatientState((p) => ({
         ...p,
-        name: data.name || p.name,
-        condition: data.condition || p.condition,
+        name:
+          data.name != null && data.name !== ''
+            ? String(data.name)
+            : p.name,
+        condition: data.condition != null && data.condition !== '' ? String(data.condition) : p.condition,
       }))
       setRecentMetrics((prev) => ({
         ...prev,
@@ -164,7 +167,11 @@ export function ClinicalProvider({ children }) {
   }, [isSignedIn, userRole, fetchPatientContext, fetchNotifications, fetchAlertsPreview, syncReportsDownloadNotification])
 
   const updatePatient = useCallback((name, condition) => {
-    setPatientState((p) => ({ ...p, name: name || p.name, condition: condition || p.condition }))
+    setPatientState((p) => ({
+      ...p,
+      name: name != null && name !== '' ? String(name) : p.name,
+      condition: condition != null && condition !== '' ? String(condition) : p.condition,
+    }))
   }, [])
 
   const updateRecentMetrics = useCallback((metrics) => {

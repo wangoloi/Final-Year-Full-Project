@@ -1,0 +1,53 @@
+# Meal-Plan-System — backend (pytest) + frontend (Vite build)
+name: Meal Plan CI
+
+on:
+  push:
+    paths:
+      - "Meal-Plan-System/**"
+      - ".github/workflows/meal-plan-ci.yml"
+  pull_request:
+    paths:
+      - "Meal-Plan-System/**"
+  workflow_dispatch:
+
+concurrency:
+  group: meal-plan-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Meal-Plan-System
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: Meal-Plan-System/backend/requirements.txt
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run tests
+        run: python -m pytest backend/tests -q
+
+  frontend:
+    name: Frontend (Vite build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Meal-Plan-System/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: Meal-Plan-System/frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Production build
+        run: npm run build

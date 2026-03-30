@@ -156,11 +156,6 @@ export default function Recommendation() {
               <div className="metric-value">{result.dosage_action} ({result.dosage_magnitude})</div>
             </div>
           </div>
-          {result.is_high_risk && (
-            <div className="alert alert-warning" style={{ marginTop: '1rem' }}>
-              <strong>Flag for clinician review:</strong> {result.high_risk_reason}
-            </div>
-          )}
           <h3 style={{ fontSize: '1rem', marginTop: '1.25rem' }}>Recommendation</h3>
           <p>{result.recommendation_summary}</p>
           <p style={{ color: 'var(--text-muted)' }}>{result.recommendation_detail}</p>

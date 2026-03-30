@@ -24,7 +24,7 @@ def sensor_patients(
 
 @router.get("/series")
 def sensor_series(
-    patient_id: str = Query(..., min_length=1, max_length=32),
+    patient_id: str = Query(..., min_length=1, max_length=128),
     limit: int = Query(200, ge=1, le=2000),
     user: User = Depends(get_current_user),
 ):
@@ -36,7 +36,7 @@ def sensor_series(
 
 @router.get("/summary")
 def sensor_summary(
-    patient_id: str = Query(..., min_length=1, max_length=32),
+    patient_id: str = Query(..., min_length=1, max_length=128),
     last_n: int = Query(96, ge=1, le=2000),
     user: User = Depends(get_current_user),
 ):

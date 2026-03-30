@@ -8,11 +8,18 @@ const path = require('path')
 const frontendRoot = path.resolve(__dirname, '..')
 const vite = path.join(frontendRoot, 'node_modules', 'vite', 'bin', 'vite.js')
 
+// First cold import (ML stack + FastAPI routes) can exceed 2 minutes on some machines.
+const WAIT_MS = Number(process.env.GLUCOSENSE_API_WAIT_MS) || 600000
+
+console.log(
+  `[web] Waiting for API (GET /api/health/live), up to ${Math.round(WAIT_MS / 1000)}s — first start can be slow…`
+)
+
 waitOn({
   // Prefix required — bare http:// is treated as a file path by wait-on
   resources: ['http-get://127.0.0.1:8000/api/health/live'],
-  timeout: 120000,
-  interval: 400,
+  timeout: WAIT_MS,
+  interval: 500,
 })
   .then(() => {
     console.log('[web] API ready, starting Vite...')

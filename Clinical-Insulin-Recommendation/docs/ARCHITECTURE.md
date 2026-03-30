@@ -2,7 +2,7 @@
 
 This document describes **GlucoSense Clinical Support** using a **modern, industry-aligned** view: **C4-style context/containers**, **layered / hexagonal mapping**, **data flows**, and **repository layout**. It reflects the **current codebase** in this repository and notes **intentional vs legacy** parts.
 
-**Related docs:** [README.md](../README.md), [RUN.md](RUN.md), [GLUCOSENSE_SYSTEM_DOCUMENTATION.md](GLUCOSENSE_SYSTEM_DOCUMENTATION.md) (if present). **Whole workspace pipeline:** [../../../SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md).
+**Related docs:** [README.md](../README.md), [RUN.md](RUN.md). **Whole workspace pipeline:** [../../../SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md).
 
 ---
 
@@ -30,7 +30,7 @@ flowchart LR
 | **Web UI** | React SPA (`frontend/`) — dashboard, patients, trends, records, model info. |
 | **API** | FastAPI application (`app.py`) — `/api/*` REST, validation, inference orchestration. |
 | **SQLite** | Operational data: patients, assessments, glucose readings, alerts, settings, backups metadata. |
-| **Artifacts** | Trained `InferenceBundle` under `outputs/best_model/`, plots under `outputs/evaluation/`, audit logs. |
+| **Artifacts** | Optional `InferenceBundle` under `outputs/best_model/`, clinical pipeline outputs under `outputs/clinical_insulin_pipeline/`, audit logs under `outputs/audit/`. |
 
 ---
 
@@ -58,7 +58,7 @@ flowchart TB
 
   subgraph files [File system]
     Bundle[outputs/best_model/]
-    OutEval[outputs/evaluation/]
+    OutPipe[outputs/clinical_insulin_pipeline/]
     Audit[outputs/audit/]
   end
 
@@ -67,6 +67,7 @@ flowchart TB
   Router --> Engine
   Router --> Store
   Engine --> Bundle
+  Engine -.-> OutPipe
   Router -.-> Audit
 ```
 
@@ -78,7 +79,7 @@ flowchart TB
 
 ## 3. Backend logical architecture (modern layered view)
 
-The Python package **`src/insulin_system/`** maps cleanly to **hexagonal / clean architecture** layers:
+The Python package **`backend/src/insulin_system/`** maps cleanly to **hexagonal / clean architecture** layers:
 
 | Layer | Packages / modules | Responsibility |
 |-------|-------------------|----------------|
@@ -86,7 +87,7 @@ The Python package **`src/insulin_system/`** maps cleanly to **hexagonal / clean
 | **Application** | `api/engine.py`, `recommendation/`, parts of `api/*_helpers.py` | Use cases: predict, explain, recommend; orchestrate model + rules + explanation. |
 | **Domain** | `domain/` | Validation rules, constants — pure domain concepts. |
 | **Infrastructure (adapters out)** | `persistence/` (load bundle), `storage/` (SQLite), `explainability/`, `monitoring/`, `safety/` | DB, files, SHAP, audit, metrics. |
-| **ML training / batch** | `data_processing/`, `models/`, `run_*.py` at repo root | Offline pipeline — not required at request time except that **artifacts must exist**. |
+| **ML training / batch** | `clinical_insulin_pipeline/` (`run_clinical_insulin_pipeline.py`), legacy `data_processing/` / `models/` | Offline training — not required at request time except that **API artifacts** (e.g. `outputs/best_model/`) may be needed for full inference. |
 
 ```mermaid
 flowchart TB
@@ -176,7 +177,7 @@ frontend/src/
 ### 5.2 Model load
 
 - **First request** or **background thread** in `app.py` startup: `get_bundle()` loads **`outputs/best_model/`**.
-- **503** if bundle missing — operator runs `run_pipeline.py` or evaluation script (see `RUN.md`).
+- **503** if bundle missing — add `outputs/best_model/inference_bundle.joblib` or wire training output (see `RUN.md`, `outputs/README.md`).
 
 ### 5.3 Audit & safety
 
@@ -191,14 +192,15 @@ frontend/src/
 |------|---------|
 | `app.py` | **Primary** FastAPI app: CORS, optional rate limit, includes `insulin_system` router, optional static SPA, model preload. |
 | `backend/app.py` | **FastAPI** application used by the React web UI |
-| `src/insulin_system/` | Core product logic (API, ML inference, recommendation, explainability, storage). |
+| `backend/src/insulin_system/` | Core product logic (API, ML inference, recommendation, explainability, storage). |
+| `backend/src/clinical_insulin_pipeline/` | Offline dose-regression training (`run_clinical_insulin_pipeline.py`). |
 | `frontend/` | Clinician React SPA. |
-| `outputs/best_model/` | Serialized inference bundle for runtime. |
+| `outputs/best_model/` | Serialized inference bundle for runtime (when present). |
+| `outputs/clinical_insulin_pipeline/` | Latest training run artifacts from the clinical pipeline. |
 | `outputs/glucosense.db` | Operational SQLite (see README/RUN.md for paths). |
-| `outputs/evaluation/`, `outputs/explainability/` | Training/eval artifacts and plots. |
-| `scripts/pipeline/` | Offline ML and pipeline entrypoints (`run_pipeline.py`, `run_evaluation.py`, …). |
+| `scripts/pipeline/` | `run_clinical_insulin_pipeline.py` and related entrypoints. |
 | `tests/` | Pytest tests. |
-| `docs/notebooks/` | Research / development Jupyter notebooks. |
+| `docs/notebooks/` | Notebook notes (see `docs/notebooks/README.md`). |
 | `Dockerfile` | Container build for deployment. |
 | `docs/` | Architecture and project guides (this file). |
 
@@ -226,24 +228,22 @@ flowchart LR
     S[services]
   end
 
-  subgraph api [src/insulin_system]
+  subgraph api [backend/src/insulin_system]
     RT[api/routes.py]
     EN[api/engine.py]
     ST[storage]
   end
 
   subgraph ml [Training only]
-    RP[scripts/pipeline/run_pipeline.py]
-    DP[data_processing]
-    MD[models]
+    RP[run_clinical_insulin_pipeline.py]
+    CIP[clinical_insulin_pipeline]
   end
 
   S -->|HTTP| RT
   RT --> EN
   RT --> ST
-  RP --> DP
-  RP --> MD
-  MD -.->|artifacts| EN
+  RP --> CIP
+  CIP -.->|artifacts| EN
 ```
 
 ---
@@ -254,4 +254,4 @@ flowchart LR
 
 ---
 
-*Last updated: aligned with repository layout and `app.py` + `src/insulin_system` + `frontend` as of document creation.*
+*Last updated: aligned with `app.py` + `backend/src/insulin_system` + `clinical_insulin_pipeline` + `frontend`.*

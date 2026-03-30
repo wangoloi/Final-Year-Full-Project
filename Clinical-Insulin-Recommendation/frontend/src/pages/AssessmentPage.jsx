@@ -1,7 +1,7 @@
 /**
  * Assessment: patient selection, current assessment form, and recommendation results.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useClinical } from '../context/ClinicalContext'
 import ConfirmDoseModal from '../components/ConfirmDoseModal'
@@ -10,8 +10,16 @@ import ResourcePanel from '../components/ResourcePanel'
 import FeedbackModal from '../components/FeedbackModal'
 import AssessmentForm from '../components/dashboard/AssessmentForm'
 import RecommendationResult from '../components/dashboard/RecommendationResult'
+import PatientSearchCombobox from '../components/PatientSearchCombobox'
 import { fetchRecommendation, recordDose, submitFeedback } from '../services/dashboardApi'
-import { validateForm, buildBody, initialForm, DEFAULT_AGE } from '../utils/assessmentFormUtils'
+import {
+  validateForm,
+  buildBody,
+  initialForm,
+  DEFAULT_AGE,
+  ageFromDateOfBirth,
+  normalizeGenderForAssessment,
+} from '../utils/assessmentFormUtils'
 import { DOSE_CONFIRM_DELAY_MS, WORKSPACE_PATH } from '../constants'
 
 export default function AssessmentPage() {
@@ -30,6 +38,31 @@ export default function AssessmentPage() {
   const [feedbackSending, setFeedbackSending] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
   const [quickEntryMode, setQuickEntryMode] = useState(false)
+  const lastPrefilledPatientId = useRef(null)
+
+  /** When the selected patient changes (or their row first loads), fill age from DOB and gender from registration. */
+  useEffect(() => {
+    if (!selectedPatientId) {
+      lastPrefilledPatientId.current = null
+      return
+    }
+    if (lastPrefilledPatientId.current === selectedPatientId) return
+
+    const p = (patients || []).find(
+      (x) => x.id === selectedPatientId || String(x.id) === String(selectedPatientId),
+    )
+    if (!p) return
+
+    const ageVal = ageFromDateOfBirth(p.date_of_birth)
+    const genderVal = normalizeGenderForAssessment(p.gender)
+
+    lastPrefilledPatientId.current = selectedPatientId
+    setForm((prev) => ({
+      ...prev,
+      age: ageVal != null ? String(ageVal) : prev.age,
+      gender: genderVal != null ? genderVal : prev.gender,
+    }))
+  }, [selectedPatientId, patients])
 
   useEffect(() => {
     if (!result) return
@@ -58,8 +91,8 @@ export default function AssessmentPage() {
     const formToValidate = quickEntryMode
       ? {
           ...initialForm(),
-          age: DEFAULT_AGE,
-          gender: 'Male',
+          age: form.age != null && form.age !== '' ? form.age : DEFAULT_AGE,
+          gender: form.gender || 'Male',
           food_intake: 'Medium',
           previous_medications: 'None',
           glucose_level: form.glucose_level,
@@ -88,8 +121,8 @@ export default function AssessmentPage() {
       quickEntryMode
         ? {
             ...initialForm(),
-            age: DEFAULT_AGE,
-            gender: 'Male',
+            age: form.age != null && form.age !== '' ? form.age : DEFAULT_AGE,
+            gender: form.gender || 'Male',
             food_intake: 'Medium',
             previous_medications: 'None',
             glucose_level: form.glucose_level,
@@ -177,19 +210,15 @@ export default function AssessmentPage() {
     <div className="dashboard">
       <section className="dashboard-section dashboard-patient-entry">
         <div className="card card-patient-selector">
-          <label className="form-field">
+          <label className="form-field" htmlFor="assessment-patient-search">
             <span className="form-field-label">Patient *</span>
-            <select
-              className="form-select"
-              value={selectedPatientId ?? ''}
-              onChange={(e) => setSelectedPatientId(e.target.value ? Number(e.target.value) : null)}
-              required
-            >
-              <option value="">— Select patient —</option>
-              {(patients || []).map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.condition})</option>
-              ))}
-            </select>
+            <PatientSearchCombobox
+              id="assessment-patient-search"
+              patients={patients || []}
+              value={selectedPatientId}
+              onChange={(id) => setSelectedPatientId(id == null ? null : Number(id))}
+              placeholder={(!patients || patients.length === 0) ? 'Register a patient first…' : 'Search by name or ID…'}
+            />
           </label>
           {(!patients || patients.length === 0) && (
             <p className="card-description" style={{ marginTop: '0.5rem', marginBottom: 0 }}>

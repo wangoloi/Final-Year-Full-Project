@@ -1,6 +1,6 @@
 # Run Typesense next to the Meal Plan API (dev).
 # Usage (from this folder):
-#   docker compose -f docker-compose.typesense.yml up -d
+#   docker compose -f backend/docker-compose.typesense.yml up -d
 # Then set in backend/.env:
 #   TYPESENSE_HOST=localhost
 #   TYPESENSE_API_KEY=xyz

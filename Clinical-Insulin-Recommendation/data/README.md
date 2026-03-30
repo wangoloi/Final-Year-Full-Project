@@ -4,6 +4,6 @@ Place project datasets here.
 
 | File | Description |
 |------|-------------|
-| `SmartSensor_DiabetesMonitoring.csv` | Default dataset for the **Smart Sensor ML** pipeline (`scripts/run_smart_sensor_ml.py`) — 15-minute wearable-style rows, `Insulin_Dose` target. |
+| `SmartSensor_DiabetesMonitoring.csv` | Default training CSV for **`clinical_insulin_pipeline`** — wearable-style rows. **Target:** `Insulin_Dose` (IU, clipped to 0–10 for training). **Not used as features:** `Predicted_Progression` (dropped to reduce leakage). Engineered features include cyclical time + `glycemic_stress_index`, `pulse_pressure`, `activity_volume`. |
 
-**Note:** The legacy `insulin_system` `DataProcessingPipeline` (dashboard reference load, older notebooks) expects a different column schema (`patient_id`, `Insulin`, `gender`, etc.). Use `scripts/run_smart_sensor_ml.py` for this CSV, or supply a legacy-formatted CSV via `--data` if you still run the old evaluation scripts.
+**Note:** The **`insulin_system`** dashboard loader and legacy bundle format may expect a **different** column schema than this file. For **`outputs/best_model/inference_bundle.joblib`**, match whatever `load_best_model` expects.

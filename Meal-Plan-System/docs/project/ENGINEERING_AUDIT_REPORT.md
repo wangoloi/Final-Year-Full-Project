@@ -430,7 +430,7 @@ const handleLogin = async (email: string, password: string) => {
 - Meal logging
 - Glucose logging
 - Recommendations
-- ~~Token storage (AsyncStorage)~~ — **Current product:** browser `localStorage` via `frontend/src/api.js`
+- ~~Token storage (AsyncStorage)~~ — **Current product:** browser `localStorage` via `frontend/src/lib/api.js`
 
 ---
 
@@ -539,7 +539,7 @@ const handleLogin = async (email: string, password: string) => {
 
 | Issue | Status | Implementation |
 |-------|--------|----------------|
-| **1. Authentication (web)** | ✅ Fixed | **`frontend/src/api.js`** + **`AuthContext`**: `POST /api/auth/login` and `/api/auth/register`; token in **`localStorage`**; `Authorization: Bearer` on requests; 401 clears session |
+| **1. Authentication (web)** | ✅ Fixed | **`frontend/src/lib/api.js`** + **`AuthContext`**: `POST /api/auth/login` and `/api/auth/register`; token in **`localStorage`**; `Authorization: Bearer` on requests; 401 clears session |
 | **2. Test coverage ≥ 80%** | ⚠️ Historical | Current repo: **`pytest backend/tests`** (FastAPI). Old “82% / 30 tests” referred to a prior Flask tree. |
 | **3. Onboarding flow** | ✅ Fixed (web) | **`frontend/src/pages/Onboarding.jsx`**; `users.onboarding_completed` in DB; **`POST /api/auth/onboarding/complete`**; optional **`PATCH /api/auth/profile`** |
 | **4. Dead code removal** | ✅ Fixed | Deleted `app/routes/api_v1.py`; app uses `api_v1_controller` |

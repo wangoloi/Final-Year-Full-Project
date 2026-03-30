@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { useClinical } from '../../context/ClinicalContext'
 import { createPatient, updatePatient } from '../../services/patientsApi'
 
-const GENDER_OPTIONS = ['Male', 'Female', 'Other']
+const GENDER_OPTIONS = ['Male', 'Female']
 const CONDITION_T1D = 'Type 1 Diabetes'
 
 export default function PatientForm({ onSuccess, onCancel, initialData }) {
@@ -14,7 +14,7 @@ export default function PatientForm({ onSuccess, onCancel, initialData }) {
   const [form, setForm] = useState({
     name: initialData?.name ?? '',
     date_of_birth: initialData?.date_of_birth ?? '',
-    gender: initialData?.gender ?? 'Male',
+    gender: initialData?.gender ?? '',
     condition: initialData?.condition ?? CONDITION_T1D,
     medical_record_number: initialData?.medical_record_number ?? '',
   })
@@ -100,7 +100,6 @@ export default function PatientForm({ onSuccess, onCancel, initialData }) {
             className="form-input"
             value={form.name}
             onChange={(e) => handleChange('name', e.target.value)}
-            placeholder="e.g. John Doe"
             required
             disabled={saving}
           />
@@ -124,7 +123,9 @@ export default function PatientForm({ onSuccess, onCancel, initialData }) {
             value={form.gender}
             onChange={(e) => handleChange('gender', e.target.value)}
             disabled={saving}
+            aria-label="Gender"
           >
+            <option value="">Select…</option>
             {GENDER_OPTIONS.map((g) => (
               <option key={g} value={g}>{g}</option>
             ))}

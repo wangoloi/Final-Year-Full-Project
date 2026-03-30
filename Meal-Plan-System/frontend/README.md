@@ -1,8 +1,8 @@
 # Glocusense frontend
 
-React SPA built with **Vite**. Dev server default: **http://localhost:5173**.
+React SPA built with **Vite**. Dev server default: **http://localhost:5175** (`vite.config.js`).
 
-API calls use **`/api/...`**; Vite proxies to the FastAPI backend (**http://127.0.0.1:8000**). From repo root start the API: **`python backend/run.py`** (or **`python run.py`**).
+API calls use **`/api/...`**; Vite proxies to the Meal Plan API (**http://127.0.0.1:8001** by default — same as `python run.py` from `backend/`). Override with **`MEAL_PLAN_API_PROXY`** if the API uses another port.
 
 New users see a one-time **onboarding** screen; completion calls **`POST /api/auth/onboarding/complete`**. Profile updates use **`PATCH /api/auth/profile`**.
 

@@ -88,9 +88,11 @@ python run.py
 
 Start-Sleep -Seconds 3
 
-Write-Step "Window 2/3: GlucoSense - clinical API :8000 + MAIN PORTAL (npm run start)"
+Write-Step "Window 2/3: GlucoSense - clinical API :8000 + MAIN PORTAL (npm run start = dev:fast, no wait-on)"
 Start-StackWindow -Title 'GlucoSense: MAIN APP (portal + API)' -WorkingDir $GlucoFront -CommandLine @'
-$env:NODE_OPTIONS = '--max-old-space-size=6144'
+# Avoid OOM when multiple Node/Vite processes run (do not set 6GB+ heap here).
+$env:NODE_OPTIONS = '--max-old-space-size=2048'
+$env:GLUCOSENSE_UVICORN_RELOAD = '0'
 npm run start
 '@
 
@@ -99,7 +101,7 @@ Start-Sleep -Seconds 2
 Write-Step "Window 3/3: Meal Plan Vite on :5175 (for iframe only)"
 Start-StackWindow -Title 'Meal Plan UI :5175 (iframe target)' -WorkingDir $MealFront -CommandLine @'
 $env:MEAL_PLAN_API_PROXY = 'http://127.0.0.1:8001'
-node ./node_modules/vite/bin/vite.js --port 5175 --strictPort
+npm run dev
 '@
 
 Write-Host ""
@@ -119,5 +121,5 @@ Write-Host "  Meal Plan API docs:   http://127.0.0.1:8001/docs" -ForegroundColor
 Write-Host ""
 Write-Host "GlucoSense frontend/.env should include:" -ForegroundColor Yellow
 Write-Host "  VITE_MEAL_PLAN_URL=http://localhost:5175" -ForegroundColor Gray
-Write-Host "  VITE_MEAL_PLAN_API_URL=http://127.0.0.1:8001" -ForegroundColor Gray
+Write-Host "  (omit VITE_MEAL_PLAN_API_URL in dev - SSO uses Vite proxy /api/auth to :8001)" -ForegroundColor DarkGray
 Write-Host ""

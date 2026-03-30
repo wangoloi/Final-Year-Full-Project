@@ -22,7 +22,9 @@ numpy>=1.24.0
 
 # ML/RAG (optional - for semantic search)
 scikit-learn>=1.3.0
-sentence-transformers==2.2.2
-chromadb==0.4.24
+# 2.2.x breaks with huggingface_hub>=0.20 (cached_download removed); keep aligned with chromadb stack
+sentence-transformers>=3.0.0,<4
+# 1.5+ has prebuilt wheels on Python 3.14; 0.4.x pulls chroma-hnswlib (often needs MSVC build on Windows)
+chromadb>=1.5.0,<2
 rapidfuzz>=3.0.0
 typesense>=0.21.0
