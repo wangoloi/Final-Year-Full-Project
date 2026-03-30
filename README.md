@@ -208,7 +208,9 @@ Details: **[DEPLOY.md](./DEPLOY.md)**
 ## Authors
 
 **Abaho Joy**
+
 **Wangolo Bachawa**
+
 **Mucunguzi Godfrey**
 
 
