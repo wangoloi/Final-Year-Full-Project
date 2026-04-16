@@ -44,5 +44,8 @@ htmlcov/
 # Logs
 *.log
 
-# Ignore markdown documentation files
-*.md
+# Ignore selected markdown documentation files from the repo root
+ARCHITECTURE.md
+DEPLOY.md
+FRONTEND_BACKEND_AUDIT.md
+SYSTEM_PIPELINE.md
