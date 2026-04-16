@@ -43,3 +43,6 @@ htmlcov/
 
 # Logs
 *.log
+
+# Ignore markdown documentation files
+*.md
