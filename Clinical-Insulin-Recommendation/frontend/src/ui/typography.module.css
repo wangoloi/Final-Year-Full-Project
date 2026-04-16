@@ -1,0 +1,22 @@
+.heading {
+  margin: 0;
+  color: var(--text);
+  line-height: var(--lh-heading);
+  letter-spacing: -0.02em;
+}
+
+.h1 { font-size: var(--fs-h1); font-weight: 800; }
+.h2 { font-size: var(--fs-h2); font-weight: 700; }
+.h3 { font-size: var(--fs-h3); font-weight: 700; }
+
+.text {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.muted { color: var(--text-muted); }
+.caption { font-size: var(--fs-caption); line-height: 1.45; }
+.helper { font-size: 0.875rem; line-height: 1.45; } /* 14px helper */
+

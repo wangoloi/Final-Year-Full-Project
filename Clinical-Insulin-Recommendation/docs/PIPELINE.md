@@ -2,6 +2,8 @@
 
 This document describes how data is generated, stored, and fed into the **GlucoSense** API and UI on first run and during normal operation.
 
+**Commands** (uvicorn, npm, training): **[RUN.md](./RUN.md)**.
+
 For the **full integrated workspace** (GlucoSense + Meal Plan + offline training), see **[../../../SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md)**.
 
 ---
@@ -81,14 +83,9 @@ The **FastAPI** CDS path loads an **`InferenceBundle`** from **`outputs/best_mod
 
 ---
 
-## 5. End-to-end sequence (first run)
+## 5. First-run sequence (summary)
 
-1. Start backend: `uvicorn app:app --host 0.0.0.0 --port 8000`
-2. First request (e.g. GET `/api/health` or any `/api/*`) triggers `init_db()` and `run_seed_if_needed()`.
-3. Database file is created at `outputs/glucosense.db` and seed data is written.
-4. Frontend starts (e.g. `npm run dev`), calls `/api/notifications`, `/api/messages`, `/api/patient-context`, `/api/glucose-trends`, `/api/records`, `/api/settings`.
-5. UI displays notifications, messages, sidebar metrics, chart, reports table, and settings from the seeded (and later live) data.
-6. User actions (e.g. “Administer dose”, “Send message”, “Get recommendation”) call POST/PATCH/PUT endpoints and update the database; the UI refreshes from the same API.
+On first `/api/*` access, `init_db()` and `run_seed_if_needed()` create/update SQLite (default path per `storage/db.py`, often under `outputs/`). The UI then reads the same endpoints listed in §2. **Step-by-step run instructions:** [RUN.md](./RUN.md).
 
 ---
 

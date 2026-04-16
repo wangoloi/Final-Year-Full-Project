@@ -3,6 +3,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { FiActivity } from 'react-icons/fi'
 import { useClinical } from '../context/ClinicalContext'
 import { WORKSPACE_PATH } from '../constants'
+import Heading from '../ui/Heading'
+import Text from '../ui/Text'
+import Button from '../ui/Button'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -44,8 +47,8 @@ export default function LoginPage() {
         <div className="unified-login-logo">
           <FiActivity size={40} aria-hidden />
         </div>
-        <h1>Sign in</h1>
-        <p className="unified-login-lead">GlucoSense unified portal</p>
+        <Heading level={1}>Sign in</Heading>
+        <Text className="unified-login-lead" tone="muted">GlucoSense unified portal</Text>
 
         <form onSubmit={handleSubmit} className="unified-login-form">
           <label className="unified-field">
@@ -82,15 +85,15 @@ export default function LoginPage() {
             </label>
           </fieldset>
 
-          <button type="submit" className="unified-btn unified-btn-primary unified-btn-block">
+          <Button type="submit" block>
             Continue
-          </button>
+          </Button>
         </form>
 
-        <p className="unified-login-hint">
+        <Text className="unified-login-hint" size="caption" tone="muted">
           Demo mode: password optional. The Meal Plan panel loads the separate Glocusense web app - run it on{' '}
-          <code>127.0.0.1:5173</code> (see <code>VITE_MEAL_PLAN_URL</code>).
-        </p>
+          <code>your portal URL</code> (see <code>VITE_MEAL_PLAN_URL</code>).
+        </Text>
       </div>
     </div>
   )

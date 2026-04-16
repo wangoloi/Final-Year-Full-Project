@@ -1,17 +1,16 @@
 """
-GlucoSense Clinical Support - FastAPI backend (web API for the React app).
+GlucoSense Clinical Support — FastAPI backend for the React (Vite) portal.
 
-Repository layout:
-  backend/app.py   ← this file (run via uvicorn)
-  backend/src/     ← insulin_system (API, storage)
-  frontend/        ← React (Vite)
-  data/, outputs/, config/  ← repo root
+What lives where:
+  backend/app.py     — This app: CORS, lifespan (DB seed + optional model preload), /api routes.
+  backend/src/insulin_system — REST handlers, inference engine, SQLite storage, safety/audit.
+  backend/src/clinical_insulin_pipeline — Shared inference + offline training (dose regression).
+  frontend/          — Clinician UI; in dev Vite proxies /api → this server (default :8000).
+  data/, outputs/, config/ — Repo root: training CSV, model bundles, clinical JSON.
 
-Run from repo root:
-  uvicorn app:app --reload --port 8000        # uses root app.py shim
-  uvicorn backend.app:app --reload --port 8000
+Run: uvicorn app:app --reload --port 8000 (from repo root via root app.py shim) or backend.app:app.
 
-Optional: GLUCOSENSE_API_KEY enables API key auth (X-API-Key header).
+Optional: GLUCOSENSE_API_KEY — require X-API-Key on requests.
 """
 from __future__ import annotations
 

@@ -7,6 +7,9 @@ import {
   FiShield,
   FiUsers,
 } from 'react-icons/fi'
+import Heading from '../ui/Heading'
+import Text from '../ui/Text'
+import Button from '../ui/Button'
 
 /**
  * Public landing — unified GlucoSense (clinical CDS) + Glocusense Meal Plan (nutrition).
@@ -20,8 +23,8 @@ export default function LandingPage() {
             <FiActivity className="unified-landing-logo" />
           </div>
           <div>
-            <h1>GlucoSense</h1>
-            <p>Clinical intelligence & nutrition - one calm workspace</p>
+            <Heading level={1}>GlucoSense</Heading>
+            <Text as="p" tone="muted">Clinical intelligence & nutrition - one calm workspace</Text>
           </div>
         </div>
         <nav className="unified-landing-nav" aria-label="Primary">
@@ -31,9 +34,9 @@ export default function LandingPage() {
           <a href="#roles" className="unified-landing-nav-link">
             Who this is for
           </a>
-          <Link to="/login" className="unified-landing-cta">
+          <Button as={Link} to="/login" className="unified-landing-cta">
             Sign in
-          </Link>
+          </Button>
         </nav>
       </header>
 
@@ -42,13 +45,13 @@ export default function LandingPage() {
           <div className="unified-landing-hero-grid">
             <div className="unified-landing-hero-copy">
               <span className="unified-landing-eyebrow">Type 1 diabetes care</span>
-              <h2 id="landing-hero-title">
+              <Heading level={2} id="landing-hero-title" as="h2">
                 Smarter insulin support and meal planning - together
-              </h2>
-              <p className="unified-landing-lead">
+              </Heading>
+              <Text className="unified-landing-lead">
                 One portal for clinicians who need decision support and for patients who want focused
                 nutrition tools. Clear roles, one experience.
-              </p>
+              </Text>
               <ul className="unified-landing-checklist">
                 <li>
                   <FiCheck className="unified-landing-check-icon" aria-hidden />
@@ -64,10 +67,10 @@ export default function LandingPage() {
                 </li>
               </ul>
               <div className="unified-landing-hero-actions">
-                <Link to="/login" className="unified-btn unified-btn-primary unified-btn-lg">
+                <Button as={Link} to="/login" className="unified-btn unified-btn-primary unified-btn-lg">
                   Get started
                   <FiArrowRight className="unified-btn-icon" aria-hidden />
-                </Link>
+                </Button>
                 <div className="unified-landing-hero-split">
                   <Link to="/login?role=clinician" className="unified-landing-text-link">
                     Clinician access
@@ -121,49 +124,49 @@ export default function LandingPage() {
 
         <section id="features" className="unified-landing-section" aria-labelledby="features-title">
           <div className="unified-landing-section-head">
-            <h2 id="features-title">What GlucoSense includes</h2>
-            <p>Three pillars - clinical depth, everyday nutrition, and access that matches responsibility.</p>
+            <Heading level={2} id="features-title" as="h2">What GlucoSense includes</Heading>
+            <Text tone="muted">Three pillars - clinical depth, everyday nutrition, and access that matches responsibility.</Text>
           </div>
           <div className="unified-landing-grid">
             <article className="unified-card unified-card--lift">
               <FiShield className="unified-card-icon" aria-hidden />
-              <h3>Clinical CDS</h3>
-              <p>
+              <Heading level={3} as="h3">Clinical CDS</Heading>
+              <Text as="p" tone="muted">
                 Insulin recommendations with explainability, patient records, alerts, and reporting - designed
                 for licensed clinicians using decision support responsibly.
-              </p>
+              </Text>
             </article>
             <article className="unified-card unified-card--lift">
               <FiCoffee className="unified-card-icon" aria-hidden />
-              <h3>Meal plan &amp; nutrition</h3>
-              <p>
+              <Heading level={3} as="h3">Meal plan &amp; nutrition</Heading>
+              <Text as="p" tone="muted">
                 Food search, a nutrition assistant, meal recommendations, and glucose tracking from the integrated
                 meal-plan experience - embedded in the same portal.
-              </p>
+              </Text>
             </article>
             <article className="unified-card unified-card--lift">
               <FiUsers className="unified-card-icon" aria-hidden />
-              <h3>Role-based access</h3>
-              <p>
+              <Heading level={3} as="h3">Role-based access</Heading>
+              <Text as="p" tone="muted">
                 After sign-in, clinicians see the full dashboard plus meal tools. Patients go straight to meal
                 planning - simple, focused self-management.
-              </p>
+              </Text>
             </article>
           </div>
         </section>
 
         <section id="roles" className="unified-landing-section unified-landing-section--alt" aria-labelledby="roles-title">
           <div className="unified-landing-section-head">
-            <h2 id="roles-title">Choose your path</h2>
-            <p>Same platform - tailored entry points after you sign in.</p>
+            <Heading level={2} id="roles-title" as="h2">Choose your path</Heading>
+            <Text tone="muted">Same platform - tailored entry points after you sign in.</Text>
           </div>
           <div className="unified-landing-roles">
             <article className="unified-landing-role-card">
               <div className="unified-landing-role-icon" aria-hidden>
                 <FiShield />
               </div>
-              <h3>Clinician</h3>
-              <p>Workspace, patients, insulin support, reports, alerts - and meal planning when you need it.</p>
+              <Heading level={3} as="h3">Clinician</Heading>
+              <Text as="p" tone="muted">Workspace, patients, insulin support, reports, alerts - and meal planning when you need it.</Text>
               <Link to="/login?role=clinician" className="unified-landing-role-cta">
                 Continue as clinician <FiArrowRight size={16} aria-hidden />
               </Link>
@@ -172,8 +175,8 @@ export default function LandingPage() {
               <div className="unified-landing-role-icon unified-landing-role-icon--patient" aria-hidden>
                 <FiCoffee />
               </div>
-              <h3>Patient</h3>
-              <p>Meal planning, food discovery, and glucose tools - without the clinical dashboard.</p>
+              <Heading level={3} as="h3">Patient</Heading>
+              <Text as="p" tone="muted">Meal planning, food discovery, and glucose tools - without the clinical dashboard.</Text>
               <Link to="/login?role=patient" className="unified-landing-role-cta">
                 Continue as patient <FiArrowRight size={16} aria-hidden />
               </Link>
@@ -183,20 +186,20 @@ export default function LandingPage() {
 
         <section className="unified-landing-cta-band" aria-labelledby="cta-band-title">
           <div className="unified-landing-cta-inner">
-            <h2 id="cta-band-title">Ready to open the portal?</h2>
-            <p>Use your demo credentials or the account your team issued.</p>
-            <Link to="/login" className="unified-btn unified-btn-on-dark unified-btn-lg">
+            <Heading level={2} id="cta-band-title" as="h2">Ready to open the portal?</Heading>
+            <Text as="p">Use your demo credentials or the account your team issued.</Text>
+            <Button as={Link} to="/login" className="unified-btn unified-btn-on-dark unified-btn-lg">
               Sign in to GlucoSense
               <FiArrowRight className="unified-btn-icon" aria-hidden />
-            </Link>
+            </Button>
           </div>
         </section>
 
-        <p className="unified-landing-disclaimer">
+        <Text className="unified-landing-disclaimer" size="helper" tone="muted">
           <strong>Clinical safety:</strong> GlucoSense supports - but does not replace - professional medical
           judgment. Meal Plan information is for education and self-management; confirm any care changes with your
           health team.
-        </p>
+        </Text>
       </main>
 
       <footer className="unified-landing-footer">

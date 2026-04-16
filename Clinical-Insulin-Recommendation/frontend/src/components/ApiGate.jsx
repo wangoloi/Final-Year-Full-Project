@@ -57,7 +57,7 @@ export default function ApiGate({ children }) {
           Start the GlucoSense backend on port <strong>8000</strong>, then refresh.
         </p>
         <code style={{ display: 'block', background: '#f4f4f5', padding: '0.75rem 1rem', borderRadius: 8, fontSize: '0.85rem', textAlign: 'left', width: '100%' }}>
-          python -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
+          python -m uvicorn app:app --reload --port 8000
         </code>
         <button
           type="button"

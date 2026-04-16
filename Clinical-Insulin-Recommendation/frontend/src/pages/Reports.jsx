@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useClinical } from '../context/ClinicalContext'
-import { apiFetch } from '../api'
+import * as clinicalApi from '../services/clinicalApi'
 
-const API = '/api'
 const REPORTS_DOWNLOAD_TYPE = 'reports_download'
 
 const HOURS_12_MS = 12 * 60 * 60 * 1000
@@ -196,7 +195,7 @@ function formatDateLabel(dateStr) {
 }
 
 export default function Reports() {
-  const { refreshFromApi } = useClinical()
+  const { refreshFromApi, reportApiError } = useClinical()
   const [data, setData] = useState({ records: [], count: 0 })
   const [patientCtx, setPatientCtx] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -214,23 +213,19 @@ export default function Reports() {
       setError(null)
     }
     try {
-      const [recRes, ctxRes] = await Promise.all([
-        apiFetch(`${API}/records?limit=100`),
-        apiFetch(`${API}/patient-context`),
+      const [json, ctx] = await Promise.all([
+        clinicalApi.fetchRecords(100),
+        clinicalApi.fetchPatientContext(),
       ])
-      if (!recRes.ok) throw new Error(await recRes.text())
-      const json = await recRes.json()
       setData(json)
-      if (ctxRes.ok) {
-        const ctx = await ctxRes.json()
-        setPatientCtx(ctx)
-      }
+      setPatientCtx(ctx)
     } catch (e) {
       if (!silent) setError(e.message)
+      reportApiError(e, 'Could not load reports.')
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [])
+  }, [reportApiError])
 
   useEffect(() => {
     loadReports(false)
@@ -240,17 +235,12 @@ export default function Reports() {
     if (!window.confirm('Delete this report? This cannot be undone.')) return
     setDeletingId(recordId)
     try {
-      const res = await apiFetch(`${API}/records/${recordId}`, { method: 'DELETE' })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        window.alert(body.detail || body.message || 'Could not delete report.')
-        return
-      }
+      await clinicalApi.deleteRecord(recordId)
       if (expandedId === recordId) setExpandedId(null)
       await loadReports(true)
       refreshFromApi?.()
     } catch (e) {
-      window.alert(e.message || 'Delete failed.')
+      reportApiError(e, 'Delete failed.')
     } finally {
       setDeletingId(null)
     }
@@ -277,22 +267,20 @@ export default function Reports() {
           const label = undownloadedDates.length === 1
             ? formatDateLabel(undownloadedDates[0])
             : `${undownloadedDates.length} days`
-          await apiFetch(`${API}/notifications`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: `Reports from ${label} ready to download. Go to Reports to download before the next session.`,
-              type: REPORTS_DOWNLOAD_TYPE,
-            }),
-          })
+          await clinicalApi.createNotification(
+            `Reports from ${label} ready to download. Go to Reports to download before the next session.`,
+            REPORTS_DOWNLOAD_TYPE,
+          )
         } else {
-          await apiFetch(`${API}/notifications/by-type/${REPORTS_DOWNLOAD_TYPE}`, { method: 'DELETE' })
+          await clinicalApi.deleteNotificationsByType(REPORTS_DOWNLOAD_TYPE)
         }
         refreshFromApi?.()
-      } catch (_) {}
+      } catch (e) {
+        reportApiError(e, 'Could not sync report notifications.')
+      }
     }
     syncNotification()
-  }, [loading, undownloadedDates.join(','), refreshFromApi])
+  }, [loading, undownloadedDates.join(','), refreshFromApi, reportApiError])
 
   if (loading) return <div className="loading">Loading session history…</div>
   if (error) return <div className="alert alert-warning">{error}</div>

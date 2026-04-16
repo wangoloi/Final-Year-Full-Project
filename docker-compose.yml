@@ -58,12 +58,14 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_MEAL_PLAN_URL: ${PUBLIC_MEAL_WEB_URL:-http://localhost:8082}
-        VITE_MEAL_PLAN_API_URL: ${PUBLIC_MEAL_API_URL:-http://localhost:8081}
-        VITE_MEAL_PLAN_EMBED_SECRET: ${GLUCOSENSE_EMBED_KEY:-dev-embed-local-only}
     ports:
       - "8080:8000"
     environment:
       GLUCOSENSE_API_KEY: ${GLUCOSENSE_API_KEY:-}
+      # Internal URL for server-to-server SSO bridge
+      MEAL_PLAN_API_URL: http://meal-api:8001
+      # Shared secret (server-side only)
+      GLUCOSENSE_EMBED_KEY: ${GLUCOSENSE_EMBED_KEY:-dev-embed-local-only}
     volumes:
       - glucosense_outputs:/app/outputs
     depends_on:

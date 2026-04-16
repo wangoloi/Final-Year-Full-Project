@@ -1,5 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import Heading from '../../ui/Heading';
+import Text from '../../ui/Text';
+import Button from '../../ui/Button';
 
 export default function Landing() {
   return (
@@ -26,45 +29,59 @@ export default function Landing() {
             Glocusense
           </Link>
           <div className="flex items-center gap-3">
-            <Link
+            <Button
+              as={Link}
               to="/login"
-              className="inline-flex items-center gap-2 rounded-lg border border-white/40 bg-transparent px-4 py-2.5 text-sm font-medium text-white no-underline transition-colors hover:border-white/60 hover:bg-white/10"
+              variant="ghostOnDark"
+              size="sm"
+              className="border-white/40 hover:border-white/60"
             >
               Login
-            </Link>
-            <Link
+            </Button>
+            <Button
+              as={Link}
               to="/register"
-              className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 no-underline shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
+              variant="secondary"
+              size="sm"
+              className="bg-white text-blue-700 hover:bg-blue-50 hover:text-blue-600"
             >
               Get Started
-            </Link>
+            </Button>
           </div>
         </nav>
 
         <div className="relative z-[2] container mx-auto max-w-[680px] text-center">
-          <span className="mb-5 inline-block rounded-full bg-white/20 px-3 py-1.5 text-[0.8125rem] font-medium tracking-wide text-white">
+          <span className="mb-5 inline-block rounded-full bg-white/20 px-3 py-1.5 text-caption font-medium tracking-wide text-white">
             Diabetes-Friendly Nutrition
           </span>
-          <h1 className="m-0 mb-4 font-outfit text-[clamp(2rem,5vw,3rem)] font-bold leading-tight tracking-tight text-white">
+          <Heading
+            level={1}
+            tone="onDark"
+            className="mb-4 text-[clamp(2.125rem,5vw,3rem)] leading-tight"
+          >
             Meal planning that <em className="not-italic text-blue-300">cares</em> for your health
-          </h1>
-          <p className="m-0 mb-8 text-[clamp(1rem,2.5vw,1.125rem)] font-normal leading-relaxed text-white">
+          </Heading>
+          <Text as="p" tone="onDark" className="mb-8 text-[clamp(1rem,2.5vw,1.125rem)]">
             Find low-glycemic foods, track blood glucose, and get personalized meal recommendations.
             Designed for people managing diabetes—simple, practical, and supportive.
-          </p>
+          </Text>
           <div className="flex flex-wrap justify-center gap-4 max-sm:flex-col">
-            <Link
+            <Button
+              as={Link}
               to="/register"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-6 py-3.5 text-base font-semibold text-blue-700 no-underline shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600 max-sm:w-full"
+              variant="secondary"
+              className="px-6 py-3.5 text-base bg-white text-blue-700 hover:bg-blue-50 hover:text-blue-600 max-sm:w-full"
             >
               Start Planning Meals <i className="fas fa-arrow-right" />
-            </Link>
-            <Link
+            </Button>
+            <Button
+              as={Link}
               to="/login"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/60 bg-transparent px-6 py-3.5 text-base font-medium text-white no-underline transition-colors hover:border-white hover:bg-white/10 max-sm:w-full"
+              variant="ghostOnDark"
+              className="border-white/60 px-6 py-3.5 text-base hover:border-white hover:bg-white/10 max-sm:w-full"
             >
               I have an account
-            </Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -72,49 +89,49 @@ export default function Landing() {
       <section className="flex-1 bg-slate-50 py-16">
         <div className="container">
           <div className="mx-auto mb-12 max-w-[560px] text-center">
-            <h2 className="m-0 mb-2 font-outfit text-[clamp(1.75rem,4vw,2.25rem)] font-bold text-blue-700">
+            <Heading level={2} as="h2" className="mb-2 text-blue-700">
               Everything you need to eat well
-            </h2>
-            <p className="m-0 text-[1.0625rem] text-slate-700">
+            </Heading>
+            <Text as="p" tone="muted" className="text-[1.0625rem]">
               Smart tools to simplify diabetes management and keep you on track.
-            </p>
+            </Text>
           </div>
           <div className="mx-auto grid max-w-[1100px] grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
             <article className="min-h-[160px] rounded-2xl border border-slate-200 bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-100 to-blue-300 text-xl text-blue-700">
                 <i className="fas fa-apple-whole" />
               </div>
-              <h3 className="m-0 mb-2 font-outfit text-lg font-semibold text-slate-900">Smart Food Search</h3>
-              <p className="m-0 text-[0.9375rem] leading-relaxed text-slate-700">
+              <Heading level={3} as="h3" className="mb-2">Smart Food Search</Heading>
+              <Text as="p" tone="muted" size="helper">
                 Find diabetes-friendly local and healthy foods from our curated database.
-              </p>
+              </Text>
             </article>
             <article className="min-h-[160px] rounded-2xl border border-slate-200 bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-100 to-blue-300 text-xl text-blue-700">
                 <i className="fas fa-comments" />
               </div>
-              <h3 className="m-0 mb-2 font-outfit text-lg font-semibold text-slate-900">Nutrition Assistant</h3>
-              <p className="m-0 text-[0.9375rem] leading-relaxed text-slate-700">
+              <Heading level={3} as="h3" className="mb-2">Nutrition Assistant</Heading>
+              <Text as="p" tone="muted" size="helper">
                 RAG-based chatbot: ask about glycemic index, carbs, meal ideas, and blood sugar impact.
-              </p>
+              </Text>
             </article>
             <article className="min-h-[160px] rounded-2xl border border-slate-200 bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-100 to-blue-300 text-xl text-blue-700">
                 <i className="fas fa-heart-pulse" />
               </div>
-              <h3 className="m-0 mb-2 font-outfit text-lg font-semibold text-slate-900">Glucose Tracking</h3>
-              <p className="m-0 text-[0.9375rem] leading-relaxed text-slate-700">
+              <Heading level={3} as="h3" className="mb-2">Glucose Tracking</Heading>
+              <Text as="p" tone="muted" size="helper">
                 Record fasting and post-meal readings to understand your patterns.
-              </p>
+              </Text>
             </article>
             <article className="min-h-[160px] rounded-2xl border border-slate-200 bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-100 to-blue-300 text-xl text-blue-700">
                 <i className="fas fa-seedling" />
               </div>
-              <h3 className="m-0 mb-2 font-outfit text-lg font-semibold text-slate-900">Personalized Recommendations</h3>
-              <p className="m-0 text-[0.9375rem] leading-relaxed text-slate-700">
+              <Heading level={3} as="h3" className="mb-2">Personalized Recommendations</Heading>
+              <Text as="p" tone="muted" size="helper">
                 Low-glycemic index foods and meal plans tailored to your profile.
-              </p>
+              </Text>
             </article>
           </div>
         </div>
@@ -123,18 +140,20 @@ export default function Landing() {
       <section className="bg-white py-16">
         <div className="container">
           <div className="mx-auto max-w-[560px] rounded-[20px] bg-gradient-to-br from-blue-600 to-blue-700 px-8 py-12 text-center text-white shadow-[0_20px_40px_rgba(37,99,235,0.25)] max-sm:px-6 max-sm:py-8">
-            <h2 className="m-0 mb-2 font-outfit text-[clamp(1.5rem,3vw,1.875rem)] font-bold">
+            <Heading level={2} as="h2" tone="onDark" className="mb-2 text-[clamp(1.75rem,3vw,2.125rem)]">
               Ready to take control of your meals?
-            </h2>
-            <p className="m-0 mb-6 text-base font-normal text-white">
+            </Heading>
+            <Text as="p" tone="onDark" className="mb-6">
               Join Glocusense and start building healthier eating habits today.
-            </p>
-            <Link
+            </Text>
+            <Button
+              as={Link}
               to="/register"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-6 py-3.5 text-base font-semibold text-blue-700 no-underline shadow-sm transition-colors hover:bg-blue-50 hover:text-blue-600"
+              variant="secondary"
+              className="bg-white px-6 py-3.5 text-base text-blue-700 hover:bg-blue-50 hover:text-blue-600"
             >
               Create free account <i className="fas fa-arrow-right" />
-            </Link>
+            </Button>
           </div>
         </div>
       </section>

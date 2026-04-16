@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { GLUCOSE_MIN, GLUCOSE_MAX, ANTICIPATED_CARBS_MAX_G } from '../constants'
-import { apiFetch } from '../api'
+import { useClinical } from '../context/ClinicalContext'
+import { requestJson } from '../services/http'
 
 const API = '/api'
 
@@ -33,17 +34,20 @@ const FALLBACK_ZONES = [
 ]
 
 export default function InsulinManagement() {
+  const { reportApiError } = useClinical()
   const [zones, setZones] = useState([])
   const [lookupGlucose, setLookupGlucose] = useState('')
   const [interpretResult, setInterpretResult] = useState(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    apiFetch(`${API}/glucose-zones`)
-      .then((r) => (r.ok ? r.json() : { zones: [] }))
+    requestJson(`${API}/glucose-zones`)
       .then((d) => setZones(d.zones || []))
-      .catch(() => setZones([]))
-  }, [])
+      .catch((e) => {
+        setZones([])
+        reportApiError(e, 'Could not load glucose zones.')
+      })
+  }, [reportApiError])
 
   /** Find zone for glucose using same logic as backend (works with zones or fallback). */
   const findZoneForGlucose = (glucoseVal, zonesToUse) => {

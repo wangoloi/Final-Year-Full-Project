@@ -82,6 +82,7 @@ export function ClinicalProvider({ children }) {
   const [isSignedIn, setSignedInState] = useState(session.isSignedIn)
   const [userRole, setUserRoleState] = useState(session.userRole)
   const [userProfile, setUserProfileState] = useState(loadProfile)
+  const [apiError, setApiError] = useState(null)
   const [patient, setPatientState] = useState({
     name: 'Current Patient',
     condition: 'Type 1 Diabetes',
@@ -99,10 +100,21 @@ export function ClinicalProvider({ children }) {
   const [notifications, setNotifications] = useState([])
   const [alertsPreview, setAlertsPreview] = useState(0)
 
+  const reportApiError = useCallback((err, hint) => {
+    const message = err?.message ? String(err.message) : 'Request failed'
+    setApiError({
+      message: hint ? `${hint} ${message}` : message,
+      status: err?.status ?? null,
+      at: new Date().toISOString(),
+    })
+  }, [])
+
+  const clearApiError = useCallback(() => setApiError(null), [])
+
   const fetchPatientContext = useCallback(async () => {
     try {
       const data = await clinicalApi.fetchPatientContext()
-      if (!data) return
+      clearApiError()
       setPatientState((p) => ({
         ...p,
         name:
@@ -118,15 +130,19 @@ export function ClinicalProvider({ children }) {
         activityMinutes: data.activity_minutes ?? prev.activityMinutes,
         timestamp: data.updated_at || prev.timestamp,
       }))
-    } catch (_) {}
-  }, [])
+    } catch (e) {
+      reportApiError(e, 'Could not load patient context.')
+    }
+  }, [clearApiError, reportApiError])
 
   const fetchNotifications = useCallback(async () => {
     try {
       const items = await clinicalApi.fetchNotifications()
       setNotifications(items)
-    } catch (_) {}
-  }, [])
+    } catch (e) {
+      reportApiError(e, 'Could not load notifications.')
+    }
+  }, [reportApiError])
 
   const syncReportsDownloadNotification = useCallback(async () => {
     try {
@@ -145,15 +161,20 @@ export function ClinicalProvider({ children }) {
       } else {
         await clinicalApi.deleteNotificationsByType(REPORTS_DOWNLOAD_TYPE)
       }
-    } catch (_) {}
-  }, [])
+    } catch (e) {
+      // Non-blocking: show banner but keep UI usable.
+      reportApiError(e, 'Could not sync report notifications.')
+    }
+  }, [reportApiError])
 
   const fetchAlertsPreview = useCallback(async () => {
     try {
       const alerts = await clinicalApi.fetchAlerts(ALERTS_FETCH_LIMIT, true)
       setAlertsPreview(alerts.length)
-    } catch (_) {}
-  }, [])
+    } catch (e) {
+      reportApiError(e, 'Could not load alerts.')
+    }
+  }, [reportApiError])
 
   useEffect(() => {
     if (!isSignedIn || userRole !== 'clinician') return
@@ -222,9 +243,11 @@ export function ClinicalProvider({ children }) {
   const clearNotificationBadge = useCallback(async () => {
     try {
       await clinicalApi.markNotificationsRead()
-    } catch (_) {}
+    } catch (e) {
+      reportApiError(e, 'Could not mark notifications as read.')
+    }
     setNotifications((n) => n.map((x) => ({ ...x, unread: false })))
-  }, [])
+  }, [reportApiError])
 
   const refreshFromApi = useCallback(() => {
     fetchPatientContext()
@@ -236,8 +259,10 @@ export function ClinicalProvider({ children }) {
     try {
       const { patients: list } = await fetchPatients()
       setPatients(list)
-    } catch (_) {}
-  }, [])
+    } catch (e) {
+      reportApiError(e, 'Could not load patients.')
+    }
+  }, [reportApiError])
 
   useEffect(() => {
     if (!isSignedIn || userRole !== 'clinician') return
@@ -254,6 +279,9 @@ export function ClinicalProvider({ children }) {
     login,
     userProfile,
     setUserProfile,
+    apiError,
+    reportApiError,
+    clearApiError,
     patient: { ...patient, photoPlaceholder: true },
     setPatient: updatePatient,
     patients,

@@ -1,3 +1,7 @@
+/**
+ * GlucoSense SPA entry: Router + global ClinicalProvider (session, theme, patients, API gate data).
+ * API calls use relative /api (Vite dev server proxies to FastAPI :8000).
+ */
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'

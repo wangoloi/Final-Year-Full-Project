@@ -2,14 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import { FiBell, FiAlertTriangle, FiUser, FiChevronDown, FiActivity, FiGrid, FiTrendingUp, FiFileText, FiSliders, FiSun, FiMenu, FiCoffee, FiClipboard } from 'react-icons/fi'
 import { useClinical } from '../context/ClinicalContext'
-import { apiFetch } from '../api'
 import { WORKSPACE_PATH } from '../constants'
-
-const API = '/api'
+import ApiErrorBanner from './ApiErrorBanner'
+import { getSettings, putSettings } from '../services/clinicalApi'
 
 function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
   const navigate = useNavigate()
-  const { notifications, clearNotificationBadge, setTheme, setSignedIn, userProfile, setUserProfile } = useClinical()
+  const { notifications, clearNotificationBadge, setTheme, setSignedIn, userProfile, setUserProfile, reportApiError } = useClinical()
   const [profileEdit, setProfileEdit] = useState({ displayName: '', role: '', email: '' })
   const [profileSaved, setProfileSaved] = useState(false)
   const [accountToast, setAccountToast] = useState('')
@@ -24,14 +23,22 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
   const unreadCount = notifications.filter((n) => n.unread).length
 
   useEffect(() => {
-    apiFetch(`${API}/settings`).then((r) => r.ok && r.json()).then((d) => {
-      if (d) { setSettings(d); setTheme(d.theme || 'light') }
-    }).catch(() => {})
-  }, [setTheme])
+    getSettings()
+      .then((d) => {
+        if (d) {
+          setSettings(d)
+          setTheme(d.theme || 'light')
+        }
+      })
+      .catch((e) => reportApiError(e, 'Could not load settings.'))
+  }, [setTheme, reportApiError])
 
   useEffect(() => {
-    if (showSettings) apiFetch(`${API}/settings`).then((r) => r.ok && r.json()).then((d) => d && setSettings(d)).catch(() => {})
-  }, [showSettings])
+    if (!showSettings) return
+    getSettings()
+      .then((d) => d && setSettings(d))
+      .catch((e) => reportApiError(e, 'Could not load settings.'))
+  }, [showSettings, reportApiError])
 
   useEffect(() => {
     setTheme(settings.theme || 'light')
@@ -55,7 +62,7 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
     const next = { ...settings, [key]: value }
     setSettings(next)
     if (key === 'theme') setTheme(value || 'light')
-    apiFetch(`${API}/settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) }).catch(() => {})
+    putSettings(next).catch((e) => reportApiError(e, 'Could not save settings.'))
   }
 
   const goToDashboard = () => { setShowNotifications(false); navigate(WORKSPACE_PATH) }
@@ -121,16 +128,26 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
           {showNotifications && (
             <div className="topbar-dropdown-panel topbar-notifications">
               <div className="topbar-dropdown-header">Notifications</div>
-              {notifications.length === 0 ? (
-                <div className="topbar-dropdown-item topbar-dropdown-empty">No new notifications</div>
-              ) : (
-                notifications.map((n) => (
-                  <div key={n.id} className={`topbar-dropdown-item ${n.unread ? 'unread' : ''}`}>
-                    <p>{n.text}</p>
-                    <span className="topbar-dropdown-meta">{n.time}</span>
+              <div className="topbar-notifications-list" role="list" aria-label="Notifications list">
+                {notifications.length === 0 ? (
+                  <div className="topbar-dropdown-item topbar-dropdown-empty" role="listitem">
+                    No new notifications
                   </div>
-                ))
-              )}
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      role="listitem"
+                      title="Double-click to open Alerts"
+                      onDoubleClick={goToAlerts}
+                      className={`topbar-dropdown-item ${n.unread ? 'unread' : ''}`}
+                    >
+                      <p>{n.text}</p>
+                      <span className="topbar-dropdown-meta">{n.time}</span>
+                    </div>
+                  ))
+                )}
+              </div>
               <div className="topbar-dropdown-footer">
                 <span className="topbar-dropdown-footer-label">Quick links</span>
                 <div className="topbar-dropdown-actions">
@@ -352,6 +369,7 @@ export default function Layout() {
           <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
         )}
         <main className="app-main" id="main-content">
+          <ApiErrorBanner />
           <Outlet />
         </main>
       </div>

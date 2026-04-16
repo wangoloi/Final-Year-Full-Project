@@ -1,5 +1,7 @@
 # Glocusense UI Design Guide
 
+System architecture (API modules, ports, embed): [`../../docs/DESIGN_STRUCTURE.md`](../../docs/DESIGN_STRUCTURE.md).
+
 Use this guide when adding or modifying UI components to keep the app balanced, properly sized, and well arranged.
 
 ## Design Tokens (`src/styles/index.css`)

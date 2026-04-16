@@ -7,11 +7,13 @@ Input validation and structured JSON responses with clinical metadata.
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
+import requests
 
 from ..config.schema import DashboardConfig, GLUCOSE_ZONES, get_glucose_zone
 from ..safety.audit import log_prediction
@@ -78,7 +80,6 @@ from .engine import (
     get_model_info,
     get_feature_importance,
 )
-from .helpers.shap_background import load_background_if_needed
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["GlucoSense"])
@@ -115,6 +116,69 @@ def _record_glucose_trend(body: Dict[str, Any], patient_id: Optional[int] = None
         insert_glucose_reading(float(gl), is_predicted=False, patient_id=patient_id)
     except Exception as e:
         logger.warning("Failed to record glucose for trend: %s", e)
+
+
+def _meal_plan_base_url() -> str:
+    """
+    Internal base URL for the Meal Plan API (no trailing slash).
+    In Docker Compose this should be the service name, e.g. http://meal-api:8001.
+    """
+    u = os.environ.get("MEAL_PLAN_API_URL") or os.environ.get("MEAL_PLAN_API_INTERNAL_URL") or ""
+    u = str(u).strip().rstrip("/")
+    if not u:
+        raise HTTPException(status_code=500, detail="Meal Plan SSO not configured (missing MEAL_PLAN_API_URL).")
+    return u
+
+
+def _meal_plan_embed_key() -> str:
+    key = (os.environ.get("GLUCOSENSE_EMBED_KEY") or "").strip()
+    if not key:
+        raise HTTPException(status_code=500, detail="Meal Plan SSO not configured (missing GLUCOSENSE_EMBED_KEY).")
+    return key
+
+
+@router.post("/meal-plan/sso")
+def meal_plan_sso(body: Dict[str, Any]):
+    """
+    Server-side SSO bridge: the browser calls this endpoint on the Clinical API, and the Clinical API
+    calls Meal Plan API /api/auth/integration/glucosense using the embed key stored in env.
+
+    This avoids exposing the embed key in the browser bundle (deployment hardening).
+    """
+    email = (body.get("email") or "").strip().lower()
+    role = (body.get("role") or "").strip().lower()
+    display_name = body.get("display_name") or body.get("displayName") or None
+
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="email is required")
+    if role not in ("clinician", "patient"):
+        raise HTTPException(status_code=400, detail="role must be clinician or patient")
+
+    url = f"{_meal_plan_base_url()}/api/auth/integration/glucosense"
+    try:
+        r = requests.post(
+            url,
+            headers={
+                "Content-Type": "application/json",
+                "X-Glucosense-Embed-Key": _meal_plan_embed_key(),
+            },
+            json={"email": email, "display_name": display_name, "role": role},
+            timeout=12,
+        )
+    except requests.RequestException as e:
+        raise HTTPException(status_code=503, detail=f"Meal Plan API unreachable: {e}") from e
+
+    try:
+        data = r.json() if r.text else {}
+    except Exception:
+        data = {}
+    if not r.ok:
+        detail = data.get("detail") if isinstance(data, dict) else None
+        raise HTTPException(status_code=r.status_code, detail=detail or "Meal Plan SSO failed")
+    token = data.get("token") if isinstance(data, dict) else None
+    if not token:
+        raise HTTPException(status_code=502, detail="Meal Plan SSO returned no token")
+    return {"token": token}
 
 
 @router.post("/predict", response_model=PredictionResponse)
@@ -190,7 +254,6 @@ def batch_recommend(body: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Model not loaded: {e}")
 
-    background = load_background_if_needed()
     results = []
     for i, p in enumerate(patients):
         try:
@@ -199,7 +262,7 @@ def batch_recommend(body: Dict[str, Any]):
                 results.append({"index": i, "error": errors[0].get("message", "Validation failed")})
                 continue
             df = patient_input_to_dataframe(patient)
-            resp = run_recommend(patient, df, bundle, background)
+            resp = run_recommend(patient, df, bundle)
             results.append({"index": i, "recommendation": resp.model_dump()})
         except Exception as e:
             results.append({"index": i, "error": str(e)})
@@ -243,9 +306,8 @@ def recommend(body: Dict[str, Any]):
         )
 
     df = patient_input_to_dataframe(patient)
-    background = load_background_if_needed()
     try:
-        resp = run_recommend(patient, df, bundle, background)
+        resp = run_recommend(patient, df, bundle)
     except Exception as e:
         logger.exception("Recommendation failed: %s", e)
         raise HTTPException(

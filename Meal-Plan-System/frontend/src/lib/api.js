@@ -22,7 +22,7 @@ function devHealthCheckUrl() {
   if (typeof window !== 'undefined' && window.location?.origin) {
     return `${window.location.origin}/api/health`;
   }
-  return 'http://localhost:5175/api/health (or your Vite dev URL + /api/health)';
+  return '(your Meal Plan Vite URL)/api/health';
 }
 
 /**
@@ -51,7 +51,7 @@ function explainProxyOrServerError(status, textSnippet) {
     'Start the API: cd Meal-Plan-System/backend then: $env:PORT="8001"; python run.py ' +
     '(or from repo root: npm run meal-api). ' +
     'If the API uses another port, set MEAL_PLAN_API_PROXY before npm run dev, e.g. ' +
-    '$env:MEAL_PLAN_API_PROXY="http://127.0.0.1:9000". ' +
+    '$env:MEAL_PLAN_API_PROXY="http://<host>:<port>". ' +
     `Then open ${devHealthCheckUrl()} — expect JSON with "app":"glocusense-meal-plan".`
   );
 }

@@ -17,7 +17,7 @@ import {
 } from '../services/patientsApi'
 
 export default function Patients() {
-  const { patients, refreshPatients, setSelectedPatientId, setPatient, selectedPatientId } = useClinical()
+  const { patients, refreshPatients, setSelectedPatientId, setPatient, selectedPatientId, reportApiError } = useClinical()
   const [showForm, setShowForm] = useState(false)
   const [editingPatient, setEditingPatient] = useState(null)
   const [viewingPatient, setViewingPatient] = useState(null)
@@ -25,8 +25,12 @@ export default function Patients() {
   const [deletedPatients, setDeletedPatients] = useState([])
 
   const loadDeleted = async () => {
-    const { patients: list } = await fetchDeletedPatients()
-    setDeletedPatients(list || [])
+    try {
+      const { patients: list } = await fetchDeletedPatients()
+      setDeletedPatients(list || [])
+    } catch (e) {
+      reportApiError(e, 'Could not load deleted patients.')
+    }
   }
 
   useEffect(() => {
@@ -42,7 +46,9 @@ export default function Patients() {
       setViewingPatientData(null)
       return
     }
-    fetchPatient(viewingPatient).then((p) => setViewingPatientData(p))
+    fetchPatient(viewingPatient)
+      .then((p) => setViewingPatientData(p))
+      .catch((e) => reportApiError(e, 'Could not load patient details.'))
   }, [viewingPatient])
 
   const handleAdd = () => {
@@ -74,7 +80,7 @@ export default function Patients() {
     if (!ok) return
     const result = await deletePatient(p.id)
     if (!result.ok) {
-      window.alert(result.error || 'Could not delete patient')
+      reportApiError(new Error(result.error || 'Could not delete patient'), 'Delete failed.')
       return
     }
     if (selectedPatientId === p.id) {
@@ -92,7 +98,7 @@ export default function Patients() {
   const handleRestore = async (p) => {
     const result = await restorePatient(p.id)
     if (!result.ok) {
-      window.alert(result.error || 'Could not restore patient')
+      reportApiError(new Error(result.error || 'Could not restore patient'), 'Restore failed.')
       return
     }
     await refreshPatients()
@@ -106,7 +112,7 @@ export default function Patients() {
     if (!ok) return
     const result = await purgePatient(p.id)
     if (!result.ok) {
-      window.alert(result.error || 'Could not delete patient')
+      reportApiError(new Error(result.error || 'Could not delete patient'), 'Permanent delete failed.')
       return
     }
     if (selectedPatientId === p.id) {

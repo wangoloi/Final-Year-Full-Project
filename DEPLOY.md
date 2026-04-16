@@ -43,7 +43,7 @@ docker compose --env-file .env.deploy down
 
 ## Production hardening (checklist)
 
-1. **Secrets** — In `.env.deploy`, set strong random values for `JWT_SECRET` and `GLUCOSENSE_EMBED_KEY`. Rebuild GlucoSense after changing `GLUCOSENSE_EMBED_KEY` so the SPA embed secret matches the API.
+1. **Secrets** — In `.env.deploy`, set strong random values for `JWT_SECRET` and `GLUCOSENSE_EMBED_KEY`. GlucoSense no longer ships the embed key to the browser; changing `GLUCOSENSE_EMBED_KEY` only requires restarting containers.
 2. **HTTPS** — Put **Caddy**, **nginx**, or a cloud load balancer in front; terminate TLS there. Before `docker compose build`, set **`PUBLIC_GLUCOSENSE_URL`**, **`PUBLIC_MEAL_WEB_URL`**, and **`PUBLIC_MEAL_API_URL`** to your public `https://` origins so the GlucoSense SPA, meal SPA (postMessage allowlist), and SSO calls stay consistent.
 3. **CORS** — Add your real origins to `CORS_EXTRA_ORIGINS` (comma-separated) for the Meal Plan API.
 4. **Database** — SQLite in volumes is fine for demos. For production, point `DATABASE_URL` on `meal-api` to PostgreSQL (requires code/config changes) and use a managed DB for GlucoSense outputs if needed.
@@ -56,8 +56,6 @@ docker compose --env-file .env.deploy down
   ```bash
   docker build -t glucosense \
     --build-arg VITE_MEAL_PLAN_URL=https://meal.example.com \
-    --build-arg VITE_MEAL_PLAN_API_URL=https://api-meal.example.com \
-    --build-arg VITE_MEAL_PLAN_EMBED_SECRET=your-secret \
     .
   ```
 

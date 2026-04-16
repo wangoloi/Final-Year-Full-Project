@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../lib/api';
+import Heading from '../../ui/Heading';
+import Text from '../../ui/Text';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [guidance, setGuidance] = useState(null);
   const [readings, setReadings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     Promise.all([api.recommendations(6), api.glucose.list()])
@@ -15,7 +18,7 @@ export default function Dashboard() {
         setGuidance(recRes.guidance || null);
         setReadings((gluRes.readings || []).slice(0, 5));
       })
-      .catch(() => {})
+      .catch((e) => setError(e?.message || 'Could not load dashboard data.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -23,6 +26,11 @@ export default function Dashboard() {
 
   return (
     <div className="page-content mx-auto flex w-full max-w-6xl flex-col gap-8">
+      {error && (
+        <div className="alert alert-error" role="alert">
+          {error}
+        </div>
+      )}
       {/* Hero */}
       <header className="page-header overflow-hidden">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -31,8 +39,8 @@ export default function Dashboard() {
               <i className="fas fa-tachometer-alt" aria-hidden />
             </div>
             <div>
-              <h1 className="!mb-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">Dashboard</h1>
-              <p className="m-0 text-base font-normal text-white">Welcome back, {displayName}!</p>
+              <Heading level={1} tone="onDark" className="!mb-1">Dashboard</Heading>
+              <Text tone="onDark">Welcome back, {displayName}!</Text>
             </div>
           </div>
         </div>
@@ -51,10 +59,10 @@ export default function Dashboard() {
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100">
               <i className="fas fa-apple-whole text-2xl" aria-hidden />
             </div>
-            <h3 className="mb-2 text-lg font-semibold text-gray-900">Search &amp; plan</h3>
-            <p className="mb-0 text-sm font-normal leading-relaxed text-gray-700">
+            <Heading level={3} as="h3" className="mb-2">Search &amp; plan</Heading>
+            <Text size="helper" tone="muted">
               Search foods and build your glucose-aware meal plan
-            </p>
+            </Text>
           </Link>
           <Link
             to="/app/meal-plan#meal-plan-glucose-log"
@@ -63,10 +71,10 @@ export default function Dashboard() {
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100">
               <i className="fas fa-heart-pulse text-2xl" aria-hidden />
             </div>
-            <h3 className="mb-2 text-lg font-semibold text-gray-900">Log glucose</h3>
-            <p className="mb-0 text-sm font-normal leading-relaxed text-gray-700">
+            <Heading level={3} as="h3" className="mb-2">Log glucose</Heading>
+            <Text size="helper" tone="muted">
               Enter a reading on Meal plan to personalize recommendations
-            </p>
+            </Text>
           </Link>
           <Link
             to="/app/meal-plan"
@@ -75,10 +83,10 @@ export default function Dashboard() {
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100">
               <i className="fas fa-utensils text-2xl" aria-hidden />
             </div>
-            <h3 className="mb-2 text-lg font-semibold text-gray-900">Meals &amp; guidance</h3>
-            <p className="mb-0 text-sm font-normal leading-relaxed text-gray-700">
+            <Heading level={3} as="h3" className="mb-2">Meals &amp; guidance</Heading>
+            <Text size="helper" tone="muted">
               What to eat now, alternatives, and foods to ease off—based on your glucose
-            </p>
+            </Text>
           </Link>
         </div>
       </section>

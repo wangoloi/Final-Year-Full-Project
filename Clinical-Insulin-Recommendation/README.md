@@ -12,6 +12,18 @@
 
 ---
 
+## Technology stack
+
+| Layer | Technologies | Location |
+|-------|----------------|----------|
+| **API** | Python 3.9+, **FastAPI**, Uvicorn, Pydantic | `backend/app.py`, `backend/src/insulin_system/` |
+| **Persistence** | **SQLite** (clinical records, patients, alerts, settings) | `insulin_system/storage/` |
+| **Inference** | `joblib` bundle, **clinical_insulin_pipeline** (dose regression IU) | `persistence/bundle.py`, `clinical_insulin_pipeline/` |
+| **UI** | **React 18**, **Vite**, React Router, Recharts | `frontend/src/` |
+| **Offline ML** | scikit-learn / pipeline scripts | `run_clinical_insulin_pipeline.py`, `outputs/` |
+
+**Layout, module map, and data flow:** **[docs/DESIGN_STRUCTURE.md](docs/DESIGN_STRUCTURE.md)**.
+
 ## Overview
 
 GlucoSense combines:
@@ -19,8 +31,6 @@ GlucoSense combines:
 1. **Prediction / recommendation** — FastAPI backend with validated patient input and structured responses.
 2. **Web UI** — React (Vite) clinician app in **`frontend/`**.
 3. **Offline training** — **`clinical_insulin_pipeline`** (insulin dose regression, 0–10 IU) under **`backend/src/clinical_insulin_pipeline/`**, run from the repo root via **`run_clinical_insulin_pipeline.py`**.
-
-**Layout:** **[docs/STRUCTURE.md](docs/STRUCTURE.md)**.
 
 ---
 
@@ -55,7 +65,18 @@ Faster smoke (skips heavy plots):
 python run_clinical_insulin_pipeline.py --skip-learning-curve --skip-shap
 ```
 
-Writes artifacts under **`outputs/clinical_insulin_pipeline/latest/`**. The API may still use a separate bundle under **`outputs/best_model/`** depending on deployment; see **`outputs/README.md`**.
+Writes artifacts under **`outputs/clinical_insulin_pipeline/latest/`** and deploys the inference bundle to:
+
+- **`outputs/best_model/inference_bundle.joblib`** (what the FastAPI backend loads)
+
+It also writes:
+
+- **Evaluation metrics**: `outputs/clinical_insulin_pipeline/latest/evaluation/`
+- **Training visualizations**: `outputs/clinical_insulin_pipeline/latest/models/`
+
+Notebook option (same pipeline, step-by-step):
+
+- `notebooks/clinical_insulin_training.ipynb`
 
 ### 3. Run the API
 

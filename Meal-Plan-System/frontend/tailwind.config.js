@@ -3,6 +3,15 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
+      fontSize: {
+        // Typography system (rem-based; body = 16px)
+        h1: ['2.125rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }], // 34px
+        h2: ['1.75rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }],  // 28px
+        h3: ['1.375rem', { lineHeight: '1.25', letterSpacing: '-0.02em' }], // 22px
+        button: ['0.9375rem', { lineHeight: '1.25' }], // 15px
+        caption: ['0.8125rem', { lineHeight: '1.45' }], // 13px
+        helper: ['0.875rem', { lineHeight: '1.45' }], // 14px
+      },
       fontFamily: {
         sans: ['DM Sans', 'system-ui', '-apple-system', 'sans-serif'],
         outfit: ['Outfit', 'sans-serif'],

@@ -9,11 +9,7 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 ARG VITE_MEAL_PLAN_URL=http://localhost:8082
-ARG VITE_MEAL_PLAN_API_URL=http://localhost:8081
-ARG VITE_MEAL_PLAN_EMBED_SECRET=change-me-in-production
 ENV VITE_MEAL_PLAN_URL=$VITE_MEAL_PLAN_URL
-ENV VITE_MEAL_PLAN_API_URL=$VITE_MEAL_PLAN_API_URL
-ENV VITE_MEAL_PLAN_EMBED_SECRET=$VITE_MEAL_PLAN_EMBED_SECRET
 RUN npm run build
 
 # --- Python dependencies ---

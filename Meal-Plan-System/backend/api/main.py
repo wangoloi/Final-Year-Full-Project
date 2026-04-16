@@ -1,6 +1,10 @@
 """
-Glocusense API - FastAPI backend.
-Microservice architecture: auth, search, chatbot, recommendations, glucose.
+Glocusense Meal Plan API — FastAPI application (default port 8001; GlucoSense clinical API uses 8000).
+
+Routers (see api/modules/): auth (JWT, embed SSO), search, chatbot (RAG), recommendations (engine),
+glucose, sensor-demo. Lifespan: create DB tables, then background thread seeds foods + RAG index.
+
+Frontend: Vite :5175 proxies /api → this process. Integrated GlucoSense embeds this origin in an iframe.
 """
 import os
 import threading

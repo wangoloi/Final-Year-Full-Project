@@ -1,3 +1,7 @@
+/**
+ * Routes: public /, /login, /register; /app/onboarding; /app/* dashboard shell (auth + onboarding).
+ * GlucoSense embed: postMessage JWT handoff — see AuthContext + MealPlan parent.
+ */
 import React from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';

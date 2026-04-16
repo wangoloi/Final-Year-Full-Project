@@ -13,7 +13,12 @@ function getIframePostMessageTarget(iframeRef) {
     const src = iframeRef?.current?.src
     if (src) return new URL(src).origin
   } catch (_) {}
-  return getMealPlanOrigin()
+  try {
+    return getMealPlanOrigin()
+  } catch {
+    // Fall back to a safe default target; the SSO token post will also fail and surface via banner.
+    return '*'
+  }
 }
 
 /**
@@ -21,7 +26,7 @@ function getIframePostMessageTarget(iframeRef) {
  * so clinicians and patients are not prompted to log in again inside the meal app.
  */
 export function useMealPlanSsoBridge(iframeRef) {
-  const { isSignedIn, userRole, userProfile, setUserProfile } = useClinical()
+  const { isSignedIn, userRole, userProfile, setUserProfile, reportApiError } = useClinical()
   const lastSentKey = useRef('')
   const syntheticSaved = useRef(false)
 
@@ -47,9 +52,9 @@ export function useMealPlanSsoBridge(iframeRef) {
       postMealPlanTokenToIframeWithRetries(win, token, mealOrigin)
       lastSentKey.current = key
     } catch (e) {
-      console.warn('[GlucoSense] Meal Plan SSO:', e.message || e)
+      reportApiError(e, 'Meal Plan SSO failed.')
     }
-  }, [iframeRef, isSignedIn, userRole, userProfile?.email, userProfile?.displayName, setUserProfile])
+  }, [iframeRef, isSignedIn, userRole, userProfile?.email, userProfile?.displayName, setUserProfile, reportApiError])
 
   useEffect(() => {
     if (!isSignedIn) return undefined

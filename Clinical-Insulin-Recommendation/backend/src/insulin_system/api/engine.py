@@ -7,7 +7,6 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import numpy as np
 import pandas as pd
 
 from clinical_insulin_pipeline.inference import predict_insulin_dose
@@ -69,7 +68,6 @@ def run_recommend(
     patient: PatientInput,
     df: pd.DataFrame,
     bundle: InferenceBundle,
-    X_background: Optional[np.ndarray] = None,
 ) -> RecommendationResponse:
     dose = _predict_dose_iu(bundle, patient)
     tier = dose_to_display_tier(dose)

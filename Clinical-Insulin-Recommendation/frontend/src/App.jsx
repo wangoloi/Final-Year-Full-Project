@@ -1,3 +1,7 @@
+/**
+ * Route map: public landing/login; patient /meal-plan; clinician /workspace/* with Layout + ApiGate.
+ * Meal Plan embed: /workspace/meal-plan + MealPlanSsoBridge (iframe + JWT to Meal API :8001).
+ */
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useClinical } from './context/ClinicalContext'
 import ApiGate from './components/ApiGate'

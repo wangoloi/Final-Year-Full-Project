@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../lib/api';
+import Heading from '../../ui/Heading';
+import Text from '../../ui/Text';
+import Button from '../../ui/Button';
 
 /**
  * First-run web onboarding — completes via FastAPI POST /api/auth/onboarding/complete.
@@ -43,10 +46,10 @@ export default function Onboarding() {
             <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-blue-300 text-[1.75rem] text-blue-700">
               <i className="fas fa-leaf" />
             </div>
-            <h1 className="m-0 mb-1 font-outfit text-[1.75rem] font-bold text-slate-900">Welcome, {displayName}</h1>
-            <p className="m-0 text-base text-slate-700">
+            <Heading level={1} className="mb-1">Welcome, {displayName}</Heading>
+            <Text tone="muted">
               Glocusense helps you plan meals and track glucose with your care goals in mind.
-            </p>
+            </Text>
           </div>
 
           <ul className="m-0 mb-6 list-none p-0 text-left">
@@ -73,7 +76,7 @@ export default function Onboarding() {
           {error && <div className="alert alert-error mb-5 rounded-[10px]">{error}</div>}
 
           <form onSubmit={handleContinue}>
-            <button type="submit" className="btn btn-primary w-full rounded-[10px] px-6 py-3.5 text-base" disabled={submitting}>
+            <Button type="submit" className="rounded-[10px] px-6 py-3.5 text-base" block disabled={submitting}>
               {submitting ? (
                 <>
                   <i className="fas fa-spinner fa-spin" /> Saving…
@@ -83,7 +86,7 @@ export default function Onboarding() {
                   Go to dashboard <i className="fas fa-arrow-right ml-1.5" />
                 </>
               )}
-            </button>
+            </Button>
           </form>
         </div>
       </div>

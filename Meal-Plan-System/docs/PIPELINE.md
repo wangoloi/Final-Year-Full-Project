@@ -70,4 +70,4 @@ Integrated stack with GlucoSense uses the workspace `docker-compose.yml` (see re
 
 ---
 
-See also: [STRUCTURE.md](./STRUCTURE.md), [ARCHITECTURE.md](./ARCHITECTURE.md), [guides/HOW_TO_RUN.md](./guides/HOW_TO_RUN.md).
+See also: [DESIGN_STRUCTURE.md](./DESIGN_STRUCTURE.md), [guides/HOW_TO_RUN.md](./guides/HOW_TO_RUN.md).

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import Heading from '../../ui/Heading';
+import Text from '../../ui/Text';
+import Button from '../../ui/Button';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -45,8 +48,8 @@ export default function Login() {
             <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-blue-300 text-[1.75rem] text-blue-700">
               <i className="fas fa-sign-in-alt" />
             </div>
-            <h1 className="m-0 mb-1 font-outfit text-[1.75rem] font-bold text-slate-900">Welcome Back</h1>
-            <p className="m-0 text-base text-slate-700">Sign in to your account</p>
+            <Heading level={1} className="mb-1">Welcome Back</Heading>
+            <Text tone="muted">Sign in to your account</Text>
           </div>
           {error && <div className="alert alert-error mb-5 rounded-[10px]">{error}</div>}
           <form onSubmit={handleSubmit}>
@@ -74,9 +77,9 @@ export default function Login() {
                 disabled={loading}
               />
             </div>
-            <button
+            <Button
               type="submit"
-              className="btn btn-primary btn-full mt-1 rounded-[10px] px-6 py-3.5 text-base"
+              className="mt-1 rounded-[10px] px-6 py-3.5 text-base"
               disabled={loading}
             >
               {loading ? (
@@ -88,7 +91,7 @@ export default function Login() {
                   <i className="fas fa-sign-in-alt" /> Sign In
                 </>
               )}
-            </button>
+            </Button>
           </form>
           <div className="mt-6 border-t border-slate-200 pt-6 text-center">
             <p className="m-0 text-[0.9375rem] text-slate-700">

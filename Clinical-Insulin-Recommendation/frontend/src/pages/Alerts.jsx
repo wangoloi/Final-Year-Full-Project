@@ -86,6 +86,31 @@ export default function Alerts() {
   const criticalCount = alerts.filter((a) => a.severity === 'critical').length
   const warningCount = alerts.filter((a) => a.severity !== 'critical').length
 
+  const applySummaryFilter = useCallback((mode) => {
+    // Summary cards act like quick filters.
+    if (mode === 'unresolved') {
+      setShowResolved(false)
+      setFilterSeverity('all')
+      return
+    }
+    if (mode === 'critical') {
+      setShowResolved(false)
+      setFilterSeverity('critical')
+      return
+    }
+    if (mode === 'warning') {
+      setShowResolved(false)
+      setFilterSeverity('warning')
+    }
+  }, [])
+
+  const onSummaryKeyDown = (mode) => (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      applySummaryFilter(mode)
+    }
+  }
+
   if (loading) return <div className="loading">Loading alerts…</div>
 
   return (
@@ -98,15 +123,36 @@ export default function Alerts() {
       </div>
 
       <div className="alerts-summary-cards">
-        <div className="alerts-summary-card alerts-summary--unresolved">
+        <div
+          className="alerts-summary-card alerts-summary--unresolved"
+          role="button"
+          tabIndex={0}
+          title="Show unresolved alerts"
+          onClick={() => applySummaryFilter('unresolved')}
+          onKeyDown={onSummaryKeyDown('unresolved')}
+        >
           <span className="alerts-summary-value">{unresolvedCount}</span>
           <span className="alerts-summary-label">Unresolved</span>
         </div>
-        <div className="alerts-summary-card alerts-summary--critical">
+        <div
+          className="alerts-summary-card alerts-summary--critical"
+          role="button"
+          tabIndex={0}
+          title="Show critical alerts"
+          onClick={() => applySummaryFilter('critical')}
+          onKeyDown={onSummaryKeyDown('critical')}
+        >
           <span className="alerts-summary-value">{criticalCount}</span>
           <span className="alerts-summary-label">Critical</span>
         </div>
-        <div className="alerts-summary-card alerts-summary--warning">
+        <div
+          className="alerts-summary-card alerts-summary--warning"
+          role="button"
+          tabIndex={0}
+          title="Show warning alerts"
+          onClick={() => applySummaryFilter('warning')}
+          onKeyDown={onSummaryKeyDown('warning')}
+        >
           <span className="alerts-summary-value">{warningCount}</span>
           <span className="alerts-summary-label">Warning</span>
         </div>

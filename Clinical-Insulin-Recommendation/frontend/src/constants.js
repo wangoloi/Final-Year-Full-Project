@@ -64,21 +64,20 @@ export const WORKSPACE_PATH = '/workspace'
 /** Glocusense Meal Plan (Vite) origin — integrated dev often uses :5175 (see scripts/start-integrated.ps1). */
 export function getMealPlanOrigin() {
   const u = import.meta.env.VITE_MEAL_PLAN_URL
-  if (u) return u.replace(/\/$/, '')
-  return 'http://localhost:5175'
+  if (typeof u === 'string' && u.trim()) return u.replace(/\/$/, '')
+  // Avoid hardcoded origins; require explicit env so LAN/remote dev works consistently.
+  throw new Error('Missing VITE_MEAL_PLAN_URL. Set it in frontend/.env (see .env.example).')
 }
 
 /**
- * Meal Plan FastAPI base URL (no `/api` suffix). In dev, empty string = same origin so `/api/auth/*`
- * is proxied by Vite to the Meal API (see vite.config.js). Avoids browser → :8001 when the API is
- * only reachable via the proxy or when using the portal from another host on the LAN.
- * Production: set `VITE_MEAL_PLAN_API_URL` if the Meal API is on another origin.
+ * API base URL override. In dev, empty string keeps calls same-origin so Vite proxy handles routing.
+ * Production: leave empty when a reverse proxy serves everything under one origin.
  */
 export function getMealPlanApiBaseUrl() {
   if (import.meta.env.DEV) {
     return ''
   }
-  const u = import.meta.env.VITE_MEAL_PLAN_API_URL
+  const u = import.meta.env.VITE_API_BASE_URL
   if (u) return u.replace(/\/$/, '')
   return ''
 }
@@ -94,7 +93,4 @@ export function getMealPlanAppUrl(opts = {}) {
   return base
 }
 
-/** Must match Meal Plan API `GLUCOSENSE_EMBED_KEY` (dev default). Exposed in client — dev/demo only. */
-export function getMealPlanEmbedSecret() {
-  return import.meta.env.VITE_MEAL_PLAN_EMBED_SECRET || 'dev-embed-local-only'
-}
+// NOTE: Meal Plan SSO secret is no longer exposed to the browser. The Clinical API brokers SSO server-side.

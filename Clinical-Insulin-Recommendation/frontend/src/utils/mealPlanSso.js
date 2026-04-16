@@ -1,4 +1,4 @@
-import { getMealPlanApiBaseUrl, getMealPlanEmbedSecret } from '../constants'
+import { getMealPlanApiBaseUrl } from '../constants'
 
 const SYNTH_EMAIL_PREFIX = 'glucosense_meal_sso_email'
 
@@ -32,9 +32,10 @@ export function getStableSyntheticSsoEmail(role, displayName) {
  * Dev: same-origin `/api/auth/...` is proxied by Vite to the Meal API; prod: use `VITE_MEAL_PLAN_API_URL` if needed.
  */
 export async function provisionMealPlanSession({ email, displayName, role }) {
+  // SSO is brokered by the Clinical API so the embed key is never shipped to the browser bundle.
+  // Dev: same-origin `/api/*` is proxied by Vite to the Clinical API; prod: same origin behind your reverse proxy.
   const apiBase = getMealPlanApiBaseUrl()
-  const secret = getMealPlanEmbedSecret()
-  const path = '/api/auth/integration/glucosense'
+  const path = '/api/meal-plan/sso'
   const url = apiBase ? `${apiBase.replace(/\/$/, '')}${path}` : path
   let res
   try {
@@ -42,7 +43,6 @@ export async function provisionMealPlanSession({ email, displayName, role }) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Glucosense-Embed-Key': secret,
       },
       body: JSON.stringify({
         email: email.trim().toLowerCase(),
@@ -53,7 +53,7 @@ export async function provisionMealPlanSession({ email, displayName, role }) {
   } catch (e) {
     const hint =
       import.meta.env.DEV && e instanceof TypeError
-        ? ' Start the Meal Plan API on port 8001 (e.g. scripts/start-integrated.ps1) or set MEAL_PLAN_API_PROXY if it runs elsewhere.'
+        ? ' Start the Clinical API on port 8000 (and Meal API on 8001). If using the integrated script, run scripts/start-integrated.ps1.'
         : ''
     throw new Error(`Meal Plan SSO: ${e?.message || 'network error'}.${hint}`)
   }

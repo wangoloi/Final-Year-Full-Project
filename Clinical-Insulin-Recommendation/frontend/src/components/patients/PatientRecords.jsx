@@ -43,10 +43,12 @@ export default function PatientRecords({ patient }) {
   const [readings, setReadings] = useState([])
   const [doses, setDoses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!patient?.id) return
     setLoading(true)
+    setError(null)
     Promise.all([
       fetchPatientRecords(patient.id),
       fetchPatientGlucoseReadings(patient.id, 168),
@@ -57,12 +59,13 @@ export default function PatientRecords({ patient }) {
         setReadings(g.readings)
         setDoses(d.events)
       })
-      .catch(() => {})
+      .catch((e) => setError(e?.message || 'Could not load patient records.'))
       .finally(() => setLoading(false))
   }, [patient?.id])
 
   if (!patient) return null
   if (loading) return <div className="card"><p>Loading records...</p></div>
+  if (error) return <div className="card"><div className="alert alert-warning" role="alert">{error}</div></div>
 
   const displayName =
     patient.name != null && patient.name !== '' ? String(patient.name) : 'Patient'

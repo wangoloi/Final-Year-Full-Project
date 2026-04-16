@@ -23,7 +23,7 @@ import {
 import { DOSE_CONFIRM_DELAY_MS, WORKSPACE_PATH } from '../constants'
 
 export default function AssessmentPage() {
-  const { setRecentMetrics, recentMetrics, patients, selectedPatientId, setSelectedPatientId } = useClinical()
+  const { setRecentMetrics, recentMetrics, patients, selectedPatientId, setSelectedPatientId, reportApiError } = useClinical()
   const [form, setForm] = useState(initialForm)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -139,6 +139,7 @@ export default function AssessmentPage() {
     const { ok, data, status } = await fetchRecommendation(body)
 
     if (!ok) {
+      reportApiError(new Error(data?.detail || data?.message || 'Recommendation failed'), 'Assessment failed.')
       if (status === 422 && Array.isArray(data.errors)) {
         setFieldErrors(data.errors)
         setError(data.detail || 'Validation failed.')
@@ -164,13 +165,16 @@ export default function AssessmentPage() {
   const handleConfirmDose = async () => {
     setDoseAdministering(true)
     try {
-      await recordDose({
+      const ok = await recordDose({
         meal_bolus: doseSummary?.mealBolus,
         correction_dose: doseSummary?.correctionDose,
         total_dose: doseSummary?.totalDose,
         patient_id: selectedPatientId,
       })
-    } catch (_) {}
+      if (!ok) throw new Error('Could not record dose.')
+    } catch (e) {
+      reportApiError(e, 'Dose record failed.')
+    }
     await new Promise((r) => setTimeout(r, DOSE_CONFIRM_DELAY_MS))
     setDoseAdministering(false)
     setConfirmDoseOpen(false)

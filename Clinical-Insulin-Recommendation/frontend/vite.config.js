@@ -7,9 +7,18 @@ export default defineConfig(({ mode }) => {
   const mealPlanApi =
     env.MEAL_PLAN_API_PROXY || env.VITE_MEAL_PLAN_API_URL || 'http://127.0.0.1:8001'
   const clinicalApi = env.CLINICAL_API_PROXY || 'http://127.0.0.1:8000'
+  const noMinify =
+    env.VITE_BUILD_NO_MINIFY === '1' ||
+    env.VITE_BUILD_NO_MINIFY === 'true' ||
+    env.BUILD_NO_MINIFY === '1' ||
+    env.BUILD_NO_MINIFY === 'true'
 
   return {
     plugins: [react()],
+    build: {
+      // Helps avoid OOM on some Windows setups during transform/minify.
+      minify: noMinify ? false : 'esbuild',
+    },
     server: {
       host: true,
       port: 5173,

@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom'
 import { FiTrendingUp, FiActivity, FiAlertTriangle, FiCoffee, FiArrowRight } from 'react-icons/fi'
 import DashboardStatsRow from '../components/dashboard/DashboardStatsRow'
 import { WORKSPACE_PATH } from '../constants'
+import Heading from '../ui/Heading'
+import Text from '../ui/Text'
 
 const shortcutClass = 'dashboard-home-shortcut'
 
@@ -13,17 +15,17 @@ export default function Dashboard() {
     <div className="dashboard dashboard-home">
       <section className="dashboard-section">
         <div className="card dashboard-home-hero">
-          <h1 className="dashboard-home-title">Welcome</h1>
-          <p className="card-description dashboard-home-lead">
+          <Heading level={1} className="dashboard-home-title">Welcome</Heading>
+          <Text className="card-description dashboard-home-lead">
             Run insulin decision support from <strong>Assessment</strong>, manage patients, review trends, and open tools from the menu.
-          </p>
+          </Text>
         </div>
       </section>
 
       <DashboardStatsRow />
 
       <section className="dashboard-section" aria-labelledby="quick-links-heading">
-        <h2 id="quick-links-heading" className="section-heading">Quick links</h2>
+        <Heading level={2} id="quick-links-heading" className="section-heading">Quick links</Heading>
         <div className="dashboard-home-grid">
           <Link to={`${WORKSPACE_PATH}/glucose-trends`} className={`card ${shortcutClass}`}>
             <FiTrendingUp size={22} className="dashboard-home-shortcut-icon" aria-hidden />

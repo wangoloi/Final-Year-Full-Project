@@ -1,6 +1,9 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api } from '../../lib/api';
+import Heading from '../../ui/Heading';
+import Text from '../../ui/Text';
+import Button from '../../ui/Button';
 
 function trendFromReadings(readings) {
   if (!readings?.length || readings.length < 2) {
@@ -238,27 +241,23 @@ export default function MealPlan() {
               <i className="fas fa-utensils" />
             </div>
             <div className="min-w-0 pt-0.5">
-              <p className="mb-3 inline-flex items-center rounded-full bg-white/20 px-3.5 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-white/95">
+              <Text as="p" size="caption" tone="onDark" className="mb-3 inline-flex items-center rounded-full bg-white/20 px-3.5 py-1.5 font-semibold uppercase tracking-[0.12em] text-white/95">
                 Nutrition assistant · Glucose-aware
-              </p>
-              <h1 className="!mb-2 font-sans text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              </Text>
+              <Heading level={1} tone="onDark" className="!mb-2">
                 Meals &amp; guidance
-              </h1>
-              <p className="m-0 max-w-xl text-sm font-normal leading-relaxed text-white sm:text-base">
+              </Heading>
+              <Text as="p" tone="onDark" className="max-w-xl text-helper sm:text-base">
                 Log your blood glucose below—your “what to eat now” suggestions update automatically when you save a
                 reading.
-              </p>
+              </Text>
             </div>
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:min-w-[11rem] lg:flex-col lg:gap-2.5">
-            <button
-              type="button"
-              onClick={scrollToSearch}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-white px-5 py-3 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-50"
-            >
+            <Button type="button" variant="secondary" onClick={scrollToSearch} className="rounded-xl bg-white text-blue-700 hover:bg-blue-50">
               <i className="fas fa-search" aria-hidden />
               Search foods
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -443,13 +442,13 @@ export default function MealPlan() {
         className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-7"
         aria-labelledby="meal-plan-search-heading"
       >
-        <h2 id="meal-plan-search-heading" className="mb-4 flex items-center gap-2 text-lg font-semibold text-blue-700">
+        <Heading level={2} as="h2" id="meal-plan-search-heading" className="mb-4 flex items-center gap-2 text-blue-700">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
             <i className="fas fa-apple-whole" aria-hidden />
           </span>
           Search foods
-        </h2>
-        <p className="mb-4 text-sm text-slate-700">Look up foods in the catalog for ideas beyond today’s suggestions.</p>
+        </Heading>
+        <Text as="p" tone="muted" size="helper" className="mb-4">Look up foods in the catalog for ideas beyond today’s suggestions.</Text>
         <form onSubmit={handleSearch} className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
             type="search"
@@ -459,7 +458,7 @@ export default function MealPlan() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button type="submit" className="btn btn-primary shrink-0 px-6 py-3 text-sm" disabled={searchLoading}>
+          <Button type="submit" className="shrink-0 px-6 py-3 text-sm" disabled={searchLoading}>
             {searchLoading ? (
               <>
                 <i className="fas fa-spinner fa-spin" /> Searching…
@@ -469,7 +468,7 @@ export default function MealPlan() {
                 <i className="fas fa-search" /> Search
               </>
             )}
-          </button>
+          </Button>
         </form>
         {searchError && <div className="alert alert-error mb-4 rounded-xl text-sm">{searchError}</div>}
         {searchNotFound && searchResults.length === 0 && (
@@ -507,16 +506,16 @@ export default function MealPlan() {
         aria-labelledby="meal-plan-recs"
         id="meal-plan-recommendations"
       >
-        <h2 id="meal-plan-recs" className="mb-4 flex flex-wrap items-center gap-2 text-lg font-semibold text-blue-700">
+        <Heading level={2} as="h2" id="meal-plan-recs" className="mb-4 flex flex-wrap items-center gap-2 text-blue-700">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
             <i className="fas fa-utensils" aria-hidden />
           </span>
           What you should eat now
-        </h2>
-        <p className="mb-6 max-w-prose text-sm leading-relaxed text-slate-700">
+        </Heading>
+        <Text as="p" tone="muted" size="helper" className="mb-6 max-w-prose">
           Based on your logged readings above: a clear next meal, a few backups, and what to ease off for now. This is
           educational guidance—not a substitute for your care team.
-        </p>
+        </Text>
         {loading ? (
           <div className="py-10 text-center">
             <div className="spinner-border text-primary mx-auto" role="status" aria-label="Loading" />
@@ -525,15 +524,15 @@ export default function MealPlan() {
         ) : !guidance || !na?.meal ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 py-10 text-center">
             <p className="mb-4 text-slate-700">No meal guidance yet. Add a glucose reading above, or try loading again.</p>
-            <button
+            <Button
               type="button"
-              className="btn btn-primary px-5 py-2.5 text-sm"
+              className="px-5 py-2.5 text-sm"
               disabled={loading}
               onClick={() => loadRecommendations()}
             >
               {loading ? <i className="fas fa-spinner fa-spin" aria-hidden /> : <i className="fas fa-rotate-right" aria-hidden />}{' '}
               Try again
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="flex flex-col gap-8">

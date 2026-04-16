@@ -13,7 +13,7 @@ import {
   Area,
 } from 'recharts'
 import { useClinical } from '../context/ClinicalContext'
-import { apiFetch } from '../api'
+import { requestJson } from '../services/http'
 
 const API = '/api'
 
@@ -168,7 +168,7 @@ function GlucoseTooltip({ active, payload, label, timeZone }) {
 const LIVE_REFRESH_MS = 60_000
 
 export default function GlucoseTrends() {
-  const { recentMetrics, patients } = useClinical()
+  const { recentMetrics, patients, reportApiError } = useClinical()
   const defaultTz = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
@@ -204,8 +204,7 @@ export default function GlucoseTrends() {
     if (trendPatientId != null) url += `&patient_id=${trendPatientId}`
     const req = ++fetchKeyRef.current
     if (!silent) setLoading(true)
-    apiFetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.resolve({ series: [] })))
+    requestJson(url)
       .then((d) => {
         if (req !== fetchKeyRef.current) return
         const series = Array.isArray(d.series) && d.series.length ? d.series : []
@@ -217,14 +216,15 @@ export default function GlucoseTrends() {
           timezone: d.timezone ?? timeZone,
         })
       })
-      .catch(() => {
+      .catch((e) => {
         if (req !== fetchKeyRef.current) return
         setChartData([])
+        reportApiError(e, 'Could not load glucose trends.')
       })
       .finally(() => {
         if (req === fetchKeyRef.current && !silent) setLoading(false)
       })
-  }, [recordLimit, timeZone, trendPatientId])
+  }, [recordLimit, timeZone, trendPatientId, reportApiError])
 
   useEffect(() => {
     loadTrends({ silent: false })
