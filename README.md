@@ -205,8 +205,12 @@ Details: **[DEPLOY.md](./DEPLOY.md)**
 
 ---
 
-## Author
+## Authors
 
-**wangoloi** — [wangolobachawa9@gmail.com](mailto:wangolobachawa9@gmail.com)
+**Abaho Joy**
 
-Repository mirror: [github.com/wangoloi/Final-Year-Full-Project](https://github.com/wangoloi/Final-Year-Full-Project)
+**Wangolo Bachawa**
+
+**Mucunguzi Godfrey**
+
+
