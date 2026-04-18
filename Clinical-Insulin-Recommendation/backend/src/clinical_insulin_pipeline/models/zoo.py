@@ -5,6 +5,7 @@ from typing import Any, List, Tuple
 
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 from xgboost import XGBRegressor
 
 from ..config import RANDOM_STATE
@@ -13,6 +14,10 @@ from ..config import RANDOM_STATE
 def build_model_factories() -> List[Tuple[str, Any]]:
     """Three strong tabular baselines for insulin dose regression (see docs)."""
     return [
+        (
+            "linear_regression",
+            LinearRegression(),
+        ),
         (
             "random_forest",
             RandomForestRegressor(
@@ -28,11 +33,12 @@ def build_model_factories() -> List[Tuple[str, Any]]:
             HistGradientBoostingRegressor(
                 max_depth=6,
                 learning_rate=0.05,
-                max_iter=500,
+                max_iter=200,
                 random_state=RANDOM_STATE,
                 early_stopping=True,
                 validation_fraction=0.12,
                 n_iter_no_change=30,
+                l2_regularization=0.1,
             ),
         ),
         (

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { apiFetch } from '../api'
 
-const API_RETRY_MS = 2000
-const API_RETRY_ATTEMPTS = 30
+/** Poll quickly so the workspace appears soon after the API listens (dev:full already waits, but cold starts still vary). */
+const API_RETRY_MS = 500
+const API_RETRY_ATTEMPTS = 120
 
-async function waitForApi() {
+async function waitForApi(signal) {
   for (let i = 0; i < API_RETRY_ATTEMPTS; i++) {
+    if (signal?.aborted) return { ok: false }
     try {
       const r = await apiFetch('/api/health/live')
       if (r.ok) return { ok: true }
@@ -24,7 +26,11 @@ export default function ApiGate({ children }) {
   const [state, setState] = useState('loading')
 
   useEffect(() => {
-    waitForApi().then((result) => setState(result.ok ? 'ready' : 'failed'))
+    const ac = new AbortController()
+    waitForApi(ac.signal).then((result) => {
+      if (!ac.signal.aborted) setState(result.ok ? 'ready' : 'failed')
+    })
+    return () => ac.abort()
   }, [])
 
   if (state === 'loading') {

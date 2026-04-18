@@ -47,7 +47,13 @@ def main(argv: list[str] | None = None) -> int:
         skip_learning_curve=args.skip_learning_curve,
         skip_shap=args.skip_shap,
     )
-    logger.info("Best model: %s RMSE=%.4f", res.best_name, res.test_metrics["rmse"])
+    logger.info(
+        "Best model selected by average rank (mse, rmse, r2): %s | mse=%.4f rmse=%.4f r2=%.4f",
+        res.best_name,
+        res.test_metrics["mse"],
+        res.test_metrics["rmse"],
+        res.test_metrics["r2"],
+    )
     logger.info("Bundle: %s", res.output_dir / "insulin_regression_bundle.joblib")
     return 0
 

@@ -102,6 +102,7 @@ function writeSelectedPort(port) {
   }
 }
 
+<<<<<<< HEAD
 async function main() {
   let apiPort = apiPortDefault
   try {
@@ -119,6 +120,49 @@ async function main() {
     }
     console.error('\n[GlucoSense API] Could not check port availability:', err)
     process.exit(1)
+=======
+const pythonExe = resolvePythonExecutable()
+// On Windows, uvicorn --reload can trigger Errno 10048 (bind race with the reloader). Default
+// reload OFF on win32; set GLUCOSENSE_UVICORN_RELOAD=1 or true to enable. Other OS: unchanged.
+const rEnv = process.env.GLUCOSENSE_UVICORN_RELOAD
+let reload
+if (process.platform === 'win32') {
+  reload = rEnv === '1' || rEnv === 'true'
+} else {
+  reload = rEnv !== '0' && rEnv !== 'false'
+}
+const uvicornArgs = ['-m', 'uvicorn', 'app:app']
+if (reload) {
+  uvicornArgs.push('--reload')
+  // Narrow reload scope (especially on Windows) so file watching is cheaper and the reloader
+  // is less likely to fight the main process on the same port.
+  const backendSrc = path.join(repoRoot, 'backend', 'src')
+  if (fs.existsSync(backendSrc)) {
+    uvicornArgs.push('--reload-dir', backendSrc)
+  }
+  const backendDir = path.join(repoRoot, 'backend')
+  if (fs.existsSync(backendDir)) {
+    uvicornArgs.push('--reload-dir', backendDir)
+  }
+}
+uvicornArgs.push('--host', '127.0.0.1', '--port', String(API_PORT))
+
+freeListenPort(API_PORT)
+if (process.platform === 'win32') {
+  sleepSyncMs(200)
+  freeListenPort(API_PORT)
+  sleepSyncMs(400)
+}
+
+const child = spawn(
+  pythonExe,
+  uvicornArgs,
+  {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+>>>>>>> b6816fd33938d1f6eb4b13b3b7093ccb1d6508fa
   }
 
   writeSelectedPort(apiPort)

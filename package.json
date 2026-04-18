@@ -13,10 +13,17 @@
     "fullstack:clean": "npm run start:full:clean",
     "start:full:concurrent": "concurrently -k -n meal-api,glucosense,meal-web -c green,blue,magenta \"npm run _meal-api\" \"npm run _glucosense\" \"npm run _meal-web\"",
     "_meal-api": "cd Meal-Plan-System/backend && set MEAL_UVICORN_RELOAD=0&& set PORT=8001&& python run.py",
+<<<<<<< HEAD
     "_glucosense": "cd Clinical-Insulin-Recommendation/frontend && set GLUCOSENSE_RESERVED_PORTS=8001&& set GLUCOSENSE_UVICORN_RELOAD=0&& npm run dev:fast",
     "_meal-web": "cd Meal-Plan-System/frontend && set MEAL_PLAN_API_PROXY=http://127.0.0.1:8001&& npm run dev:ready",
     "start:full:reload": "concurrently -k -n meal-api,glucosense,meal-web -c green,blue,magenta \"npm run _meal-api\" \"npm run _glucosense-reload\" \"npm run _meal-web\"",
     "_glucosense-reload": "cd Clinical-Insulin-Recommendation/frontend && set GLUCOSENSE_RESERVED_PORTS=8001&& npm run dev:fast",
+=======
+    "_glucosense": "cd Clinical-Insulin-Recommendation/frontend && npm run start",
+    "_meal-web": "cd Meal-Plan-System/frontend && npm run dev",
+    "start:full:reload": "concurrently -k -n meal-api,glucosense,meal-web -c green,blue,magenta \"npm run _meal-api\" \"npm run _glucosense-reload\" \"npm run _meal-web\"",
+    "_glucosense-reload": "cd Clinical-Insulin-Recommendation/frontend && npm run start",
+>>>>>>> b6816fd33938d1f6eb4b13b3b7093ccb1d6508fa
     "meal-api": "npm run _meal-api",
     "meal-web": "npm run _meal-web",
     "dev:meal": "concurrently -k -n meal-api,meal-web -c green,cyan \"npm run _meal-api\" \"npm run _meal-web\"",

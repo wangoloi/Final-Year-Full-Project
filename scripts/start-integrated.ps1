@@ -142,16 +142,23 @@ if (-not (Test-Path -LiteralPath (Join-Path $MealBackend 'run.py'))) {
   exit 1
 }
 
+<<<<<<< HEAD
 Write-Step "Freeing ports 8000, 8001, 5173, 5174, 5175 (best effort; times out so VS Code is not stuck)"
 $killPortsJob = Start-Job -ScriptBlock {
   foreach ($port in 8000, 8001, 5173, 5174, 5175) {
     Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
       ForEach-Object { taskkill /PID $_.OwningProcess /F /T | Out-Null }
   }
+=======
+Write-Step "Freeing ports 8000, 8001, 5173, 5174, 5175 (netstat + taskkill; avoids Get-NetTCPConnection hangs on some Windows builds)"
+$freePortsScript = Join-Path $PSScriptRoot 'free-dev-ports.ps1'
+if (Test-Path -LiteralPath $freePortsScript) {
+  & $freePortsScript
 }
-$null = Wait-Job $killPortsJob -Timeout 6
-Stop-Job $killPortsJob -ErrorAction SilentlyContinue
-Remove-Job $killPortsJob -Force -ErrorAction SilentlyContinue
+else {
+  Write-Warning "Port-free script not found: $freePortsScript - you may need to close old dev servers manually."
+>>>>>>> b6816fd33938d1f6eb4b13b3b7093ccb1d6508fa
+}
 Start-Sleep -Seconds 1
 
 $mealApiPort = $DesiredPorts.MealApi
@@ -268,6 +275,7 @@ python run.py
 
 Start-Sleep -Seconds 3
 
+<<<<<<< HEAD
 if ($glucoApiRunning -and $glucoWebRunning) {
   Write-Step "Window 2/3: GlucoSense API and UI already running on :$glucoApiPort + :$glucoWebPort"
 } elseif ($glucoApiRunning) {
@@ -294,6 +302,15 @@ node --max-old-space-size=4096 ./scripts/start-web.cjs
 `$env:MEAL_PLAN_URL = '$mealWebUrl'
 `$env:VITE_MEAL_PLAN_URL = '$mealWebUrl'
 `$env:NODE_OPTIONS = '--max-old-space-size=6144'
+=======
+Write-Step "Window 2/3: GlucoSense - clinical API :8000 + MAIN PORTAL (npm run start = dev:full; Vite waits for API so no proxy spam)"
+Start-StackWindow -Title 'GlucoSense: MAIN APP (portal + API)' -WorkingDir $GlucoFront -CommandLine @'
+# Avoid OOM when multiple Node/Vite processes run (do not set 6GB+ heap here).
+$env:NODE_OPTIONS = '--max-old-space-size=2048'
+# Pick up backend Python changes without manually killing uvicorn (scoped --reload-dir in start-api.cjs).
+# If you hit Windows bind error 10048, set GLUCOSENSE_UVICORN_RELOAD=0 for this window only.
+$env:GLUCOSENSE_UVICORN_RELOAD = '1'
+>>>>>>> b6816fd33938d1f6eb4b13b3b7093ccb1d6508fa
 npm run start
 "@
 }
@@ -323,8 +340,13 @@ Write-Host "  1) Wait for Meal Plan API warmup to finish on :$mealApiPort" -Fore
 Write-Host "  2) Wait for GlucoSense model readiness on :$glucoApiPort and Vite on :$glucoWebPort" -ForegroundColor Yellow
 Write-Host "  3) Wait for Meal Plan Vite on :$mealWebPort (starts after Meal API readiness)" -ForegroundColor White
 Write-Host ""
+<<<<<<< HEAD
 Write-Host "  >>> OPEN THIS IN YOUR BROWSER (main app, not meal-only):" -ForegroundColor Yellow
 Write-Host "      http://localhost:$glucoWebPort" -ForegroundColor Cyan
+=======
+Write-Host '  OPEN THIS IN YOUR BROWSER (main app, not meal-only):' -ForegroundColor Yellow
+Write-Host '      http://localhost:5173   (or :5174 if GlucoSense says port in use)' -ForegroundColor Cyan
+>>>>>>> b6816fd33938d1f6eb4b13b3b7093ccb1d6508fa
 Write-Host ""
 Write-Host "  $mealWebUrl is ONLY the meal app for the iframe - do not use it as your main entry." -ForegroundColor DarkGray
 Write-Host ""

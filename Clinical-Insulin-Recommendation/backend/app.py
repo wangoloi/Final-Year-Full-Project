@@ -161,6 +161,40 @@ except ImportError:
 
 app.include_router(api_router)
 
+<<<<<<< HEAD
+=======
+
+def _include_heavy_routes() -> None:
+    """Import API routes once. Call from eager path or first request when lazy."""
+    global _routes_loaded
+    with _routes_lock:
+        if _routes_loaded:
+            return
+        from insulin_system.api.routes import router as api_router  # noqa: E402
+
+        app.include_router(api_router)
+        _routes_loaded = True
+
+
+if not _LAZY_ROUTES:
+    _include_heavy_routes()
+else:
+
+    @app.middleware("http")
+    async def _lazy_load_routes(request: Request, call_next):
+        # Defer importing routes until first *real* API request so uvicorn binds quickly.
+        # IMPORTANT: do not import heavy routes for liveness/docs — otherwise the first
+        # GET /api/health/live (Vite ApiGate, wait-on) pays the full import cost and the UI
+        # appears "stuck loading" for tens of seconds on Windows.
+        path = request.url.path
+        if path.startswith("/api/health") or path in ("/docs", "/redoc", "/openapi.json"):
+            return await call_next(request)
+        _include_heavy_routes()
+        return await call_next(request)
+
+# Serving frontend/dist at "/" breaks /api when the mount wins route matching (common after `npm run build`).
+# Docker sets GLUCOSENSE_SERVE_SPA=1; local dev defaults off so Vite proxy always hits the API.
+>>>>>>> b6816fd33938d1f6eb4b13b3b7093ccb1d6508fa
 frontend_dist = ROOT / "frontend" / "dist"
 if frontend_dist.exists():
     static = StaticFiles(directory=str(frontend_dist), html=True)

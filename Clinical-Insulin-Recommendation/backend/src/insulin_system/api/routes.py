@@ -6,6 +6,7 @@ Input validation and structured JSON responses with clinical metadata.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import uuid
@@ -235,6 +236,108 @@ def _record_glucose_trend(body: Dict[str, Any], patient_id: Optional[int] = None
         logger.warning("Failed to record glucose for trend: %s", e)
 
 
+<<<<<<< HEAD
+=======
+# Local integrated stack (scripts/start-integrated.ps1): Meal Plan API on 8001.
+# Meal-Plan-System uses the same dev default embed key — keep these aligned.
+_DEV_MEAL_PLAN_API_URL = "http://127.0.0.1:8001"
+_DEV_GLUCOSENSE_EMBED_KEY = "dev-embed-local-only"
+
+
+def _meal_plan_base_url() -> str:
+    """
+    Internal base URL for the Meal Plan API (no trailing slash).
+    In Docker Compose set MEAL_PLAN_API_URL to the service name, e.g. http://meal-api:8001.
+    """
+    u = os.environ.get("MEAL_PLAN_API_URL") or os.environ.get("MEAL_PLAN_API_INTERNAL_URL") or ""
+    u = str(u).strip().rstrip("/")
+    if not u:
+        logger.warning(
+            "MEAL_PLAN_API_URL / MEAL_PLAN_API_INTERNAL_URL not set; using dev default %s",
+            _DEV_MEAL_PLAN_API_URL,
+        )
+        u = _DEV_MEAL_PLAN_API_URL
+    return u
+
+
+def _meal_plan_embed_key() -> str:
+    key = (os.environ.get("GLUCOSENSE_EMBED_KEY") or "").strip()
+    if not key:
+        logger.warning("GLUCOSENSE_EMBED_KEY not set; using dev default (must match Meal Plan API config)")
+        key = _DEV_GLUCOSENSE_EMBED_KEY
+    return key
+
+
+@router.post("/meal-plan/sso")
+def meal_plan_sso(body: Dict[str, Any]):
+    """
+    Server-side SSO bridge: the browser calls this endpoint on the Clinical API, and the Clinical API
+    calls Meal Plan API /api/auth/integration/glucosense using the embed key stored in env.
+
+    This avoids exposing the embed key in the browser bundle (deployment hardening).
+    """
+    email = (body.get("email") or "").strip().lower()
+    role = (body.get("role") or "").strip().lower()
+    display_name = body.get("display_name") or body.get("displayName") or None
+
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="email is required")
+    if role not in ("clinician", "patient"):
+        raise HTTPException(status_code=400, detail="role must be clinician or patient")
+
+    url = f"{_meal_plan_base_url()}/api/auth/integration/glucosense"
+    try:
+        r = requests.post(
+            url,
+            headers={
+                "Content-Type": "application/json",
+                "X-Glucosense-Embed-Key": _meal_plan_embed_key(),
+            },
+            json={"email": email, "display_name": display_name, "role": role},
+            timeout=12,
+        )
+    except requests.RequestException as e:
+        raise HTTPException(status_code=503, detail=f"Meal Plan API unreachable: {e}") from e
+
+    try:
+        data = r.json() if r.text else {}
+    except Exception:
+        data = {}
+    if not r.ok:
+        raw_detail = data.get("detail") if isinstance(data, dict) else None
+        if isinstance(raw_detail, (list, dict)):
+            try:
+                detail_str = json.dumps(raw_detail)[:800]
+            except Exception:
+                detail_str = str(raw_detail)[:800]
+        else:
+            detail_str = (str(raw_detail) if raw_detail is not None else "") or (r.text or "")[:800]
+        logger.error(
+            "Meal Plan SSO upstream HTTP %s from %s: %s",
+            r.status_code,
+            url,
+            detail_str[:500] if detail_str else "(empty body)",
+        )
+        upstream = int(r.status_code)
+        # Do not surface upstream 5xx as 500 from GlucoSense (confuses the React app); 502 = bad gateway.
+        if upstream >= 500:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Meal Plan API returned {upstream}. "
+                    "Ensure the Meal Plan API is running on port 8001 (npm run integrated window 1). "
+                    f"Upstream: {detail_str or 'no detail'}"
+                )[:2000],
+            )
+        raise HTTPException(status_code=upstream, detail=(detail_str or "Meal Plan SSO failed")[:2000])
+
+    token = data.get("token") if isinstance(data, dict) else None
+    if not token:
+        raise HTTPException(status_code=502, detail="Meal Plan SSO returned no token")
+    return {"token": token}
+
+
+>>>>>>> b6816fd33938d1f6eb4b13b3b7093ccb1d6508fa
 @router.post("/predict", response_model=PredictionResponse)
 def predict(body: Dict[str, Any]):
     """Get insulin dosage prediction for a single patient."""
