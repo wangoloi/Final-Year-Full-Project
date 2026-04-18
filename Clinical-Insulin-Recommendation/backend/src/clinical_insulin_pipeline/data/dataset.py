@@ -37,7 +37,12 @@ def _iqr_mask(s: pd.Series) -> pd.Series:
 
 def load_raw_csv(path: Path) -> pd.DataFrame:
     """Python engine avoids rare pandas C-parser failures on some Windows/Python builds."""
-    return pd.read_csv(path, engine="python", encoding="utf-8")
+    logger.info("=== Loading CSV ===")
+    logger.info("Path: %s", Path(path).resolve())
+    df = pd.read_csv(path, engine="python", encoding="utf-8")
+    logger.info("Raw shape: %s", df.shape)
+    logger.info("Columns (%d): %s", len(df.columns), list(df.columns))
+    return df
 
 
 def build_modeling_frame(
@@ -52,17 +57,22 @@ def build_modeling_frame(
       groups: Patient_ID aligned with rows (for metadata / per-patient analysis)
       n_rows_dropped_iqr: count of rows removed by IQR on BMI + BP
     """
+    logger.info("=== Feature engineering ===")
     df = add_derived_clinical_features(df)
     df = add_time_series_features(df, TS_COL, PATIENT_COL)
     df = add_cyclical_time_features(df, TS_COL)
+    logger.info("After feature engineering shape: %s", df.shape)
     n_before = len(df)
     if apply_iqr:
+        logger.info("=== IQR filtering ===")
         m = np.ones(len(df), dtype=bool)
         for col in ("BMI", "Blood_Pressure_Systolic", "Blood_Pressure_Diastolic"):
             if col in df.columns:
                 m &= _iqr_mask(df[col].astype(float))
         df = df.loc[m].reset_index(drop=True)
     n_drop = n_before - len(df)
+    if apply_iqr:
+        logger.info("Rows dropped by IQR: %d (kept %d)", n_drop, len(df))
 
     cols = feature_columns_after_engineering()
     missing = [c for c in cols if c not in df.columns]
@@ -71,6 +81,9 @@ def build_modeling_frame(
 
     y = df[TARGET_COL].astype(float).clip(DOSE_MIN, DOSE_MAX)
     X = df[cols].copy()
+    logger.info("=== Modeling frame built ===")
+    logger.info("Target: %s | y shape: %s | y min/max: %.3f / %.3f", TARGET_COL, y.shape, float(y.min()), float(y.max()))
+    logger.info("X shape (pre correlation-filter): %s", X.shape)
 
     # Drop low-signal numeric features only, but keep categorical columns used by the preprocessor.
     numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(X[c])]
@@ -82,8 +95,10 @@ def build_modeling_frame(
     selected_cols = [c for c in cols if c in categorical_cols or c in selected_numeric]
     dropped = [c for c in cols if c not in selected_cols]
     if dropped:
+        logger.info("=== Correlation-based feature filter ===")
         logger.info("Dropping %d low-correlation numeric feature(s): %s", len(dropped), dropped)
     X = X[selected_cols].copy()
+    logger.info("X shape (post correlation-filter): %s", X.shape)
 
     groups = df[PATIENT_COL].astype(str)
     return X, y, groups, n_drop
@@ -97,12 +112,21 @@ def train_test_group_split(
     random_state: int = RANDOM_STATE,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, np.ndarray, np.ndarray]:
     """Group-wise holdout: no patient appears in both train and test."""
+    logger.info("=== Group split (no patient leakage) ===")
+    logger.info("Group column: %s | unique patients: %d", PATIENT_COL, int(groups.nunique()))
     gss = GroupShuffleSplit(n_splits=5, test_size=test_size, random_state=random_state)
     train_idx, test_idx = next(gss.split(X, y, groups=groups))
     X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
     y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
     g_train = groups.iloc[train_idx].values
     g_test = groups.iloc[test_idx].values
+    logger.info(
+        "Train rows: %d | Test rows: %d | Train patients: %d | Test patients: %d",
+        len(X_train),
+        len(X_test),
+        len(set(g_train)),
+        len(set(g_test)),
+    )
     return X_train, X_test, y_train, y_test, g_train, g_test
 
 

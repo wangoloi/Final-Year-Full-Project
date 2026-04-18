@@ -69,6 +69,11 @@ def add_time_series_features(
     out[ts_col] = pd.to_datetime(out[ts_col], errors="coerce")
     out = out.sort_values([patient_col, ts_col]).reset_index(drop=True)
 
+    # Inference requests don't carry historical insulin dose. For feature compatibility,
+    # synthesize an all-zeros column so shifts/rolling features resolve safely.
+    if "Insulin_Dose" not in out.columns:
+        out["Insulin_Dose"] = 0.0
+
     out["time_since_prev_min"] = (
         out.groupby(patient_col)[ts_col]
         .diff()

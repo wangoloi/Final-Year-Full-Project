@@ -65,7 +65,8 @@ def run_training(
 
     ds = prepare_dataset(csv_path)
     pre = build_preprocessor()
-    Xtr, Xte, names = fit_transform_preprocessor(pre, ds.X_train, ds.X_test)
+    raw_feature_names = list(ds.X_train.columns)
+    Xtr, Xte, transformed_feature_names = fit_transform_preprocessor(pre, ds.X_train, ds.X_test)
     ytr = ds.y_train.values
     yte = ds.y_test.values
 
@@ -138,9 +139,9 @@ def run_training(
             title=f"{name} test residuals",
         )
         imp = get_feature_importance_vector(est, Xtr.shape[1])
-        if imp is not None and len(imp) == len(names):
+        if imp is not None and len(imp) == len(transformed_feature_names):
             plot_feature_importance(
-                names,
+                transformed_feature_names,
                 imp,
                 art_dir / f"{name}_feature_importance.png",
                 title=f"{name} feature importance",
@@ -182,7 +183,8 @@ def run_training(
         "n_train": int(len(ds.y_train)),
         "n_test": int(len(ds.y_test)),
         "n_rows_dropped_iqr": ds.n_rows_dropped_iqr,
-        "feature_names": names,
+        "raw_feature_names": raw_feature_names,
+        "transformed_feature_names": transformed_feature_names,
     }
     with open(out_dir / "run_metadata.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
@@ -191,7 +193,11 @@ def run_training(
     bundle = {
         "preprocessor": pre,
         "model": best,
-        "feature_names": names,
+        # Raw (pre-preprocessor) columns expected by serving/predict.py
+        "feature_names": raw_feature_names,
+        "raw_feature_names": raw_feature_names,
+        # Transformed feature names (match estimator coefficients / importances)
+        "transformed_feature_names": transformed_feature_names,
         "target_name": TARGET_COL,
         "best_model_name": best_name,
         "test_metrics": test_metrics,
@@ -226,7 +232,7 @@ def run_training(
         best_name=best_name,
         best_model=best,
         preprocessor=pre,
-        feature_names=names,
+        feature_names=transformed_feature_names,
         test_metrics=test_metrics,
         output_dir=out_dir,
         per_patient_rmse=per_patient,
