@@ -5,14 +5,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple
 
+import logging
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit
+
+logger = logging.getLogger(__name__)
+_CORRELATION_THRESHOLD = 0.01
 
 from ..config import DOSE_MAX, DOSE_MIN, IQR_MULTIPLIER, RANDOM_STATE, TARGET_COL, TEST_SIZE
 from .features import (
     add_cyclical_time_features,
     add_derived_clinical_features,
+    add_time_series_features,
     feature_columns_after_engineering,
 )
 
@@ -47,8 +52,9 @@ def build_modeling_frame(
       groups: Patient_ID aligned with rows (for metadata / per-patient analysis)
       n_rows_dropped_iqr: count of rows removed by IQR on BMI + BP
     """
-    df = add_cyclical_time_features(df, TS_COL)
     df = add_derived_clinical_features(df)
+    df = add_time_series_features(df, TS_COL, PATIENT_COL)
+    df = add_cyclical_time_features(df, TS_COL)
     n_before = len(df)
     if apply_iqr:
         m = np.ones(len(df), dtype=bool)
@@ -63,8 +69,22 @@ def build_modeling_frame(
     if missing:
         raise ValueError(f"Missing columns after engineering: {missing}")
 
-    X = df[cols].copy()
     y = df[TARGET_COL].astype(float).clip(DOSE_MIN, DOSE_MAX)
+    X = df[cols].copy()
+
+    # Drop low-signal numeric features only, but keep categorical columns used by the preprocessor.
+    numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(X[c])]
+    categorical_cols = [c for c in cols if c not in numeric_cols]
+    corr = X[numeric_cols].corrwith(y).abs().fillna(0.0)
+    selected_numeric = [c for c in numeric_cols if corr.get(c, 0.0) >= _CORRELATION_THRESHOLD]
+    if not selected_numeric:
+        selected_numeric = numeric_cols
+    selected_cols = [c for c in cols if c in categorical_cols or c in selected_numeric]
+    dropped = [c for c in cols if c not in selected_cols]
+    if dropped:
+        logger.info("Dropping %d low-correlation numeric feature(s): %s", len(dropped), dropped)
+    X = X[selected_cols].copy()
+
     groups = df[PATIENT_COL].astype(str)
     return X, y, groups, n_drop
 

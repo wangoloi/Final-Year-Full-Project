@@ -1,30 +1,52 @@
-"""KNN imputation + Robust scaling (fit on train only)."""
+"""Preprocessing for numeric and categorical insulin regression features."""
 from __future__ import annotations
 
 from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.impute import KNNImputer
+from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import RobustScaler
-
-from ..config import KNN_NEIGHBORS_IMPUTER
+from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 
 
 def build_preprocessor() -> Pipeline:
-    return Pipeline(
+    numeric_pipe = Pipeline(
         [
-            ("imputer", KNNImputer(n_neighbors=KNN_NEIGHBORS_IMPUTER)),
-            ("scaler", RobustScaler()),
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
         ]
     )
+    categorical_pipe = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="constant", fill_value="Missing")),
+            (
+                "encoder",
+                OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
+            ),
+        ]
+    )
+    preprocessor = ColumnTransformer(
+        [
+            ("num", numeric_pipe, make_column_selector(dtype_include=np.number)),
+            ("cat", categorical_pipe, ["time_of_day_category"]),
+        ],
+        remainder="drop",
+    )
+    return Pipeline([("preprocessor", preprocessor)])
 
 
 def fit_transform_preprocessor(
     pipe: Pipeline, X_train: pd.DataFrame, X_test: pd.DataFrame
 ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
-    names = list(X_train.columns)
     Xt = pipe.fit_transform(X_train)
     Xv = pipe.transform(X_test)
-    return Xt, Xv, names
+    feature_names = []
+    if hasattr(pipe.named_steps["preprocessor"], "get_feature_names_out"):
+        feature_names = list(
+            pipe.named_steps["preprocessor"].get_feature_names_out(X_train.columns)
+        )
+    else:
+        feature_names = list(X_train.columns)
+    return Xt, Xv, feature_names

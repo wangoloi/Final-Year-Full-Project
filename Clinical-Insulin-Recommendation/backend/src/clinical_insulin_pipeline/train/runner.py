@@ -87,11 +87,30 @@ def run_training(
     if not rows:
         raise RuntimeError("No models completed successfully.")
 
-    board = pd.DataFrame(rows).sort_values("rmse").reset_index(drop=True)
+    board = pd.DataFrame(rows)
+    # Average model performance across MSE, RMSE, and R2.
+    # Lower is better for MSE and RMSE; higher is better for R2.
+    rank_cols = []
+    for metric in ["mse", "rmse"]:
+        rank_col = f"{metric}_rank"
+        board[rank_col] = board[metric].rank(method="min", ascending=True)
+        rank_cols.append(rank_col)
+    board["r2_rank"] = board["r2"].rank(method="min", ascending=False)
+    rank_cols.append("r2_rank")
+    board["average_rank"] = board[rank_cols].mean(axis=1)
+    board = board.sort_values(["average_rank", "rmse"]).reset_index(drop=True)
     board_path = out_dir / "leaderboard.csv"
     board.to_csv(board_path, index=False)
 
     best_name = str(board.iloc[0]["model"])
+    logger.info(
+        "Selected best model %s by average_rank=%.4f (mse=%.4f, rmse=%.4f, r2=%.4f)",
+        best_name,
+        board.iloc[0]["average_rank"],
+        board.iloc[0]["mse"],
+        board.iloc[0]["rmse"],
+        board.iloc[0]["r2"],
+    )
     best = fitted[best_name]
     best_pred = best.predict(Xte)
     test_metrics = regression_metrics(yte, best_pred)
@@ -157,7 +176,8 @@ def run_training(
 
     meta = {
         "best_model": best_name,
-        "selection_metric": "rmse",
+        "selection_metric": "average_rank",
+        "selection_detail": "average of rank positions across mse, rmse, r2",
         "test_metrics": test_metrics,
         "n_train": int(len(ds.y_train)),
         "n_test": int(len(ds.y_test)),
@@ -183,14 +203,20 @@ def run_training(
 
     # Deploy copy for FastAPI (outputs/best_model/inference_bundle.joblib)
     try:
-        from insulin_system.persistence.bundle import BUNDLE_FILENAME as API_BUNDLE_NAME
-        from insulin_system.persistence.bundle import write_deploy_metadata
+        from insulin_system.persistence.bundle import (
+            BUNDLE_FILENAME as API_BUNDLE_NAME,
+            resolve_inference_bundle_path,
+            write_deploy_metadata,
+        )
 
         deploy_dir = repo / "outputs" / "best_model"
         deploy_dir.mkdir(parents=True, exist_ok=True)
         deploy_path = deploy_dir / API_BUNDLE_NAME
         shutil.copy2(bundle_path, deploy_path)
         write_deploy_metadata(deploy_dir, bundle)
+        deployed = resolve_inference_bundle_path(None)
+        if not deployed.is_file():
+            raise RuntimeError(f"Expected deployed app bundle at {deployed}, but it was not found.")
         logger.info("Deployed bundle to %s", deploy_path)
     except Exception as e:
         logger.warning("Could not copy bundle to outputs/best_model: %s", e)

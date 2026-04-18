@@ -1,4 +1,4 @@
-"""Regression metrics including MAPE-safe for zero targets."""
+"""Regression metrics used for model evaluation and selection."""
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -11,18 +11,14 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, floa
     y_true = np.asarray(y_true, dtype=float).ravel()
     y_pred = np.asarray(y_pred, dtype=float).ravel()
     mae = float(skm.mean_absolute_error(y_true, y_pred))
-    rmse = float(np.sqrt(skm.mean_squared_error(y_true, y_pred)))
+    mse = float(skm.mean_squared_error(y_true, y_pred))
+    rmse = float(np.sqrt(mse))
     r2 = float(skm.r2_score(y_true, y_pred))
-    max_err = float(skm.max_error(y_true, y_pred))
-    eps = 1e-6
-    denom = np.maximum(np.abs(y_true), eps)
-    mape = float(np.mean(np.abs((y_true - y_pred) / denom)) * 100.0)
     return {
         "mae": mae,
+        "mse": mse,
         "rmse": rmse,
-        "mape": mape,
         "r2": r2,
-        "max_error": max_err,
     }
 
 

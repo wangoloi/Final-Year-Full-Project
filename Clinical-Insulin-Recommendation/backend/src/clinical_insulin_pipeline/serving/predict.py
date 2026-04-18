@@ -32,10 +32,10 @@ def predict_insulin_dose(bundle: Dict[str, Any], row: Dict[str, Any]) -> float:
     df = pd.DataFrame([row])
     df = add_cyclical_time_features(df, "Timestamp")
     df = add_derived_clinical_features(df)
-    cols = feature_columns_after_engineering()
-    for c in cols:
-        if c not in df.columns:
-            raise ValueError(f"Missing feature column: {c}")
+    cols = list(bundle.get("feature_names") or feature_columns_after_engineering())
+    missing_cols = [c for c in cols if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing feature column(s) for inference: {missing_cols}")
     X = df[cols].astype(float)
     pre = bundle["preprocessor"]
     model = bundle["model"]
