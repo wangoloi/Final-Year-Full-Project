@@ -2,54 +2,71 @@
  * Patients page: list, register, edit patients.
  * Links to patient records.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useClinical } from '../context/ClinicalContext'
-import { FiUserPlus, FiEdit2, FiFileText, FiUsers, FiTrash2, FiRotateCcw } from 'react-icons/fi'
+import { FiUserPlus, FiEdit2, FiFileText, FiUsers, FiDatabase, FiRefreshCw, FiTrash2, FiRotateCcw, FiEye, FiEyeOff } from 'react-icons/fi'
 import PatientForm from '../components/patients/PatientForm'
 import PatientRecords from '../components/patients/PatientRecords'
 import BackupSection from '../components/patients/BackupSection'
 import {
+  fetchPatients,
   fetchPatient,
-  fetchDeletedPatients,
+  fetchRemovedPatients,
+  seedDemoPatients,
   deletePatient,
   restorePatient,
-  purgePatient,
 } from '../services/patientsApi'
 
+const ACTIONS_HIDDEN_STORAGE_KEY = 'glucosense_patients_actions_hidden'
+
 export default function Patients() {
-  const { patients, refreshPatients, setSelectedPatientId, setPatient, selectedPatientId, reportApiError } = useClinical()
+  const { patients, refreshPatients, setSelectedPatientId, setPatient, selectedPatientId } = useClinical()
   const [showForm, setShowForm] = useState(false)
   const [editingPatient, setEditingPatient] = useState(null)
   const [viewingPatient, setViewingPatient] = useState(null)
   const [viewingPatientData, setViewingPatientData] = useState(null)
-  const [deletedPatients, setDeletedPatients] = useState([])
-
-  const loadDeleted = async () => {
+  const [patientDetailLoading, setPatientDetailLoading] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoMessage, setDemoMessage] = useState(null)
+  const [removedPatients, setRemovedPatients] = useState([])
+  const [removedLoadError, setRemovedLoadError] = useState(null)
+  const [actionsHidden, setActionsHidden] = useState(() => {
     try {
-      const { patients: list } = await fetchDeletedPatients()
-      setDeletedPatients(list || [])
-    } catch (e) {
-      reportApiError(e, 'Could not load deleted patients.')
+      return localStorage.getItem(ACTIONS_HIDDEN_STORAGE_KEY) === '1'
+    } catch {
+      return false
     }
-  }
+  })
+
+  const loadRemoved = useCallback(async () => {
+    setRemovedLoadError(null)
+    const { patients: list, error } = await fetchRemovedPatients()
+    setRemovedPatients(list)
+    setRemovedLoadError(error || null)
+  }, [])
 
   useEffect(() => {
     refreshPatients()
-  }, [refreshPatients])
-
-  useEffect(() => {
-    loadDeleted()
-  }, [patients])
+    loadRemoved()
+  }, [refreshPatients, loadRemoved])
 
   useEffect(() => {
     if (!viewingPatient) {
       setViewingPatientData(null)
+      setPatientDetailLoading(false)
       return
     }
+    setPatientDetailLoading(true)
     fetchPatient(viewingPatient)
       .then((p) => setViewingPatientData(p))
-      .catch((e) => reportApiError(e, 'Could not load patient details.'))
+      .finally(() => setPatientDetailLoading(false))
   }, [viewingPatient])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIONS_HIDDEN_STORAGE_KEY, actionsHidden ? '1' : '0')
+    } catch (_) {}
+  }, [actionsHidden])
 
   const handleAdd = () => {
     setEditingPatient(null)
@@ -70,64 +87,78 @@ export default function Patients() {
   const handleViewRecords = (p) => {
     setViewingPatient(p.id)
     setSelectedPatientId?.(p.id)
-    setPatient?.({ name: p.name, condition: p.condition })
-  }
-
-  const handleDelete = async (p) => {
-    const ok = window.confirm(
-      `Delete "${p.name}"? They will be removed from the active list and assessments until you restore them from Deleted patients below. Linked assessment history is kept until you permanently delete.`
-    )
-    if (!ok) return
-    const result = await deletePatient(p.id)
-    if (!result.ok) {
-      reportApiError(new Error(result.error || 'Could not delete patient'), 'Delete failed.')
-      return
-    }
-    if (selectedPatientId === p.id) {
-      setSelectedPatientId?.(null)
-      setPatient?.({ name: '', condition: '' })
-    }
-    if (viewingPatient === p.id) {
-      setViewingPatient(null)
-      setViewingPatientData(null)
-    }
-    await refreshPatients()
-    await loadDeleted()
-  }
-
-  const handleRestore = async (p) => {
-    const result = await restorePatient(p.id)
-    if (!result.ok) {
-      reportApiError(new Error(result.error || 'Could not restore patient'), 'Restore failed.')
-      return
-    }
-    await refreshPatients()
-    await loadDeleted()
-  }
-
-  const handlePurge = async (p) => {
-    const ok = window.confirm(
-      `Permanently delete "${p.name}"? This removes the patient and all linked assessment records. This cannot be undone.`
-    )
-    if (!ok) return
-    const result = await purgePatient(p.id)
-    if (!result.ok) {
-      reportApiError(new Error(result.error || 'Could not delete patient'), 'Permanent delete failed.')
-      return
-    }
-    if (selectedPatientId === p.id) {
-      setSelectedPatientId?.(null)
-      setPatient?.({ name: '', condition: '' })
-    }
-    await refreshPatients()
-    await loadDeleted()
+    setPatient?.(p.name, p.condition)
   }
 
   const handleBackToList = () => {
     setViewingPatient(null)
   }
 
-  if (viewingPatient && viewingPatientData) {
+  const handleDelete = async (p) => {
+    if (
+      !window.confirm(
+        `Remove ${p.name} from the active list? Their assessments, glucose, and dose history stay in the database. You can retrieve them below under "Removed patients".`,
+      )
+    ) {
+      return
+    }
+    setDemoMessage(null)
+    const result = await deletePatient(p.id)
+    if (!result.ok) {
+      setDemoMessage(result.error || 'Could not delete patient.')
+      return
+    }
+    if (selectedPatientId === p.id) {
+      setSelectedPatientId?.(null)
+    }
+    await refreshPatients()
+    await loadRemoved()
+    setDemoMessage(`${p.name} was removed. You can restore them under Removed patients.`)
+  }
+
+  const handleRestore = async (p) => {
+    setDemoMessage(null)
+    try {
+      const result = await restorePatient(p.id)
+      if (!result.ok) {
+        setDemoMessage(result.error || 'Could not restore patient.')
+        return
+      }
+      await refreshPatients()
+      await loadRemoved()
+      const extra = result.warning ? ` ${result.warning}` : ''
+      setDemoMessage(`${p.name} was restored to the active list.${extra}`)
+    } catch (e) {
+      setDemoMessage(e?.message || 'Could not reach the server to restore this patient.')
+    }
+  }
+
+  const handleLoadDemo = async (force = false) => {
+    setDemoMessage(null)
+    setDemoLoading(true)
+    try {
+      const result = await seedDemoPatients(force)
+      if (!result.ok) {
+        setDemoMessage(result.error || 'Could not load demo data.')
+        return
+      }
+      await refreshPatients()
+      const n = result.monitoring_seeded_for
+      setDemoMessage(
+        force
+          ? `Demo patients updated. Refreshed monitoring data for ${n} patient(s).`
+          : n > 0
+            ? `Added demo patients and monitoring data for ${n} patient(s).`
+            : 'Demo patients are already present with data. Use refresh to replace readings.',
+      )
+    } finally {
+      setDemoLoading(false)
+    }
+  }
+
+  if (viewingPatient) {
+    const patientForRecords =
+      viewingPatientData || patients.find((p) => Number(p.id) === Number(viewingPatient))
     return (
       <div className="page">
         <div style={{ marginBottom: 'var(--spacing-lg)', display: 'flex', alignItems: 'center' }}>
@@ -135,7 +166,19 @@ export default function Patients() {
             ← Back to list
           </button>
         </div>
-        <PatientRecords patient={viewingPatientData} />
+        {patientDetailLoading && !patientForRecords ? (
+          <div className="card">
+            <p className="card-description">Loading patient…</p>
+          </div>
+        ) : patientForRecords ? (
+          <PatientRecords patient={patientForRecords} />
+        ) : (
+          <div className="card">
+            <p className="card-description">
+              Could not load this patient from the server. Go back and try again, or check that the API is running.
+            </p>
+          </div>
+        )}
       </div>
     )
   }
@@ -146,14 +189,38 @@ export default function Patients() {
         <div>
           <h1 className="page-title">Patients</h1>
           <p className="page-description">
-            Register and manage patients. Delete removes a patient from the active list (you can restore them and their linked data below).
-            Permanent delete removes the patient and all linked records.
+            Register and manage patients. Assessments can only be run for registered patients.
           </p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={handleAdd}>
-          <FiUserPlus size={18} /> Register patient
-        </button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={demoLoading}
+            onClick={() => handleLoadDemo(false)}
+            title="Creates named demo patients (if missing) and adds ~72h of glucose, assessments, and doses"
+          >
+            <FiDatabase size={18} /> {demoLoading ? 'Loading…' : 'Load demo patients'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={demoLoading}
+            onClick={() => handleLoadDemo(true)}
+            title="Clears and re-seeds monitoring data for the demo cohort only"
+          >
+            <FiRefreshCw size={18} /> Refresh demo data
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleAdd}>
+            <FiUserPlus size={18} /> Register patient
+          </button>
+        </div>
       </div>
+      {demoMessage && (
+        <p className="card-description" style={{ marginTop: '-0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+          {demoMessage}
+        </p>
+      )}
 
       {showForm ? (
         <PatientForm
@@ -163,9 +230,20 @@ export default function Patients() {
         />
       ) : (
         <div className="card">
-          <h2 className="card-heading" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FiUsers size={20} /> Registered patients ({patients.length})
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h2 className="card-heading" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+              <FiUsers size={20} /> Registered patients ({patients.length})
+            </h2>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setActionsHidden((v) => !v)}
+              title={actionsHidden ? 'Unhide patient action buttons' : 'Hide patient action buttons'}
+            >
+              {actionsHidden ? <FiEye size={16} /> : <FiEyeOff size={16} />}{' '}
+              {actionsHidden ? 'Unhide actions' : 'Hide actions'}
+            </button>
+          </div>
           {patients.length === 0 ? (
             <p className="card-description">
               No patients registered. Click &quot;Register patient&quot; to add one. You must register a patient before running assessments.
@@ -182,30 +260,40 @@ export default function Patients() {
                     </div>
                   </div>
                   <div className="patient-list-actions">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => handleViewRecords(p)}
-                      title="View records"
-                    >
-                      <FiFileText size={16} /> Records
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => handleEdit(p)}
-                      title="Edit"
-                    >
-                      <FiEdit2 size={16} /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-outline-danger"
-                      onClick={() => handleDelete(p)}
-                      title="Delete patient (can restore later)"
-                    >
-                      <FiTrash2 size={16} /> Delete
-                    </button>
+                    {actionsHidden ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button type="button" className="btn btn-secondary" onClick={() => setActionsHidden(false)} title="Unhide actions">
+                          <FiEye size={16} /> Unhide
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleViewRecords(p)}
+                          title="View records"
+                        >
+                          <FiFileText size={16} /> Records
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleEdit(p)}
+                          title="Edit"
+                        >
+                          <FiEdit2 size={16} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleDelete(p)}
+                          title="Remove patient"
+                        >
+                          <FiTrash2 size={16} /> Remove
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -214,58 +302,50 @@ export default function Patients() {
         </div>
       )}
 
-      {!showForm && (
-        <div className="card" style={{ marginTop: 'var(--spacing-lg)' }}>
-          <h2 className="card-heading" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FiTrash2 size={20} /> Deleted patients ({deletedPatients.length})
-          </h2>
-          <p className="card-description">
-            Deleted patients are hidden from the active list and cannot receive new assessments until restored. Permanently delete to remove all linked records.
+      <div className="card" style={{ marginTop: 'var(--spacing-lg)' }}>
+        <h2 className="card-heading" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <FiRotateCcw size={20} /> Removed patients ({removedPatients.length})
+        </h2>
+        <p className="card-description">
+          Patients removed from the register can be brought back; their monitoring data is kept until you restore them.
+        </p>
+        {removedLoadError && (
+          <p className="card-description" style={{ color: 'var(--danger, #b42318)', marginTop: '0.5rem' }}>
+            {removedLoadError}
           </p>
-          {deletedPatients.length === 0 ? (
-            <p className="card-description" style={{ marginTop: 0 }}>
-              No deleted patients.
-            </p>
-          ) : (
-            <div className="patient-list">
-              {deletedPatients.map((p) => (
-                <div key={p.id} className="patient-list-item">
-                  <div>
-                    <div className="patient-name">{p.name}</div>
-                    <div className="patient-meta">
-                      {p.condition}
-                      {p.deleted_at && (
-                        <span>
-                          {' '}
-                          • Deleted {new Date(p.deleted_at).toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="patient-list-actions">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => handleRestore(p)}
-                      title="Restore patient and linked data to active list"
-                    >
-                      <FiRotateCcw size={16} /> Restore
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-outline-danger"
-                      onClick={() => handlePurge(p)}
-                      title="Permanently delete all data"
-                    >
-                      <FiTrash2 size={16} /> Delete permanently
-                    </button>
+        )}
+        {!removedLoadError && removedPatients.length === 0 ? (
+          <p className="card-description" style={{ margin: 0 }}>
+            No removed patients.
+          </p>
+        ) : !removedLoadError ? (
+          <div className="patient-list">
+            {removedPatients.map((p) => (
+              <div key={p.id} className="patient-list-item">
+                <div>
+                  <div className="patient-name">{p.name}</div>
+                  <div className="patient-meta">
+                    {p.condition}
+                    {(p.medical_record_number || p.mrn_backup) &&
+                      ` • MRN: ${p.medical_record_number || p.mrn_backup}`}
+                    {p.deleted_at && (
+                      <span>
+                        {' '}
+                        • Removed {new Date(p.deleted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                <div className="patient-list-actions">
+                  <button type="button" className="btn btn-primary" onClick={() => handleRestore(p)} title="Restore to active list">
+                    <FiRotateCcw size={16} /> Retrieve / restore
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <BackupSection />
     </div>

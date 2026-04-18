@@ -37,8 +37,6 @@ def test_validate_patient_input_accepts_minimal():
     body = {
         "age": 50,
         "gender": "Male",
-        "food_intake": "Medium",
-        "previous_medications": "None",
         "glucose_level": 100,
         "BMI": 24,
     }

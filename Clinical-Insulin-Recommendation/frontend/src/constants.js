@@ -7,8 +7,6 @@
 export const AGE_MIN = 0
 export const AGE_MAX = 100
 export const GENDER_OPTIONS = ['Male', 'Female']
-export const FOOD_INTAKE_OPTIONS = ['Low', 'Medium', 'High']
-export const PREVIOUS_MEDICATION_OPTIONS = ['None', 'Insulin', 'Oral']
 export const GLUCOSE_MIN = 20
 export const GLUCOSE_MAX = 600
 export const BMI_MIN = 12
@@ -18,14 +16,7 @@ export const HBA1C_MAX = 20
 export const WEIGHT_MIN = 20
 export const WEIGHT_MAX = 300
 
-// Type 1 dosing context (IOB in units for clinical clarity)
-export const IOB_MIN_UNITS = 0
-export const IOB_MAX_UNITS = 50
-export const IOB_MIN_ML = 0
-export const IOB_MAX_ML = 0.5
-export const ANTICIPATED_CARBS_MIN_G = 0
-export const ANTICIPATED_CARBS_MAX_G = 500
-export const GLUCOSE_TREND_OPTIONS = ['stable', 'rising', 'falling']
+// Legacy inputs removed from UI (kept in backend with safe defaults)
 
 /** Smart Sensor pipeline — required with measurement (API + model) */
 export const MEAL_CONTEXT_OPTIONS = ['before_meal', 'after_meal', 'fasting']
@@ -61,25 +52,52 @@ export const ALERTS_FETCH_LIMIT = 50
 /** Clinician app routes live under this path (landing stays at `/`). */
 export const WORKSPACE_PATH = '/workspace'
 
+/** Optional Meal Plan SSO link page (GlucoSense clinical workspace does not require login). */
+export const LOGIN_PATH_CLINICAL = `/login?next=${encodeURIComponent(WORKSPACE_PATH)}`
+
+/** @deprecated use `/meal-plan` directly — no GlucoSense login gate */
+export const LOGIN_PATH_MEAL = `/login?next=${encodeURIComponent('/meal-plan')}`
+
+/** Path to the GlucoSense mark in `public/` (Vite `BASE_URL` ends with `/`). */
+export const BRAND_LOGO_SRC = `${import.meta.env.BASE_URL ?? '/'}glucosense-logo.svg`
+
+/**
+ * Public site URL shown in the UI and browser tab (marketing / production hostname).
+ * The address bar still shows the real origin (e.g. localhost) until you deploy and point DNS here.
+ * Override with VITE_PUBLIC_SITE_URL (e.g. https://www.glucosense.ug.com).
+ */
+export function getPublicSiteDisplayUrl() {
+  const u = import.meta.env.VITE_PUBLIC_SITE_URL
+  if (u && String(u).trim()) return String(u).trim().replace(/\/$/, '')
+  return 'https://www.glucosense.ug.com'
+}
+
+/** Hostname only, for compact labels (e.g. www.glucosense.ug.com). */
+export function getPublicSiteHostname() {
+  try {
+    const raw = getPublicSiteDisplayUrl()
+    const withProto = raw.includes('://') ? raw : `https://${raw}`
+    return new URL(withProto).hostname
+  } catch {
+    return 'www.glucosense.ug.com'
+  }
+}
+
 /** Glocusense Meal Plan (Vite) origin — integrated dev often uses :5175 (see scripts/start-integrated.ps1). */
 export function getMealPlanOrigin() {
-  const u = import.meta.env.VITE_MEAL_PLAN_URL
-  if (typeof u === 'string' && u.trim()) return u.replace(/\/$/, '')
-  // Avoid hardcoded origins; require explicit env so LAN/remote dev works consistently.
-  throw new Error('Missing VITE_MEAL_PLAN_URL. Set it in frontend/.env (see .env.example).')
+  const u = import.meta.env.VITE_MEAL_PLAN_URL || import.meta.env.MEAL_PLAN_URL
+  if (u && String(u).trim()) return String(u).trim().replace(/\/$/, '')
+  return 'http://localhost:5175'
 }
 
 /**
- * API base URL override. In dev, empty string keeps calls same-origin so Vite proxy handles routing.
- * Production: leave empty when a reverse proxy serves everything under one origin.
+ * Meal Plan FastAPI base URL (no `/api` suffix). SSO must call this directly — not the Vite dev server —
+ * because Vite’s `/api` proxy may point at GlucoSense (:8000) instead of the meal API (:8001).
  */
 export function getMealPlanApiBaseUrl() {
-  if (import.meta.env.DEV) {
-    return ''
-  }
-  const u = import.meta.env.VITE_API_BASE_URL
-  if (u) return u.replace(/\/$/, '')
-  return ''
+  const u = import.meta.env.VITE_MEAL_PLAN_API_URL || import.meta.env.MEAL_PLAN_API_URL
+  if (u && String(u).trim()) return String(u).trim().replace(/\/$/, '')
+  return 'http://127.0.0.1:8001'
 }
 
 /**
@@ -93,4 +111,11 @@ export function getMealPlanAppUrl(opts = {}) {
   return base
 }
 
-// NOTE: Meal Plan SSO secret is no longer exposed to the browser. The Clinical API brokers SSO server-side.
+/** Must match Meal Plan API `GLUCOSENSE_EMBED_KEY` (dev default). Exposed in client — dev/demo only. */
+export function getMealPlanEmbedSecret() {
+  return (
+    import.meta.env.VITE_MEAL_PLAN_EMBED_SECRET ||
+    import.meta.env.MEAL_PLAN_EMBED_SECRET ||
+    'dev-embed-local-only'
+  )
+}

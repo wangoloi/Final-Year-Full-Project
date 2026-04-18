@@ -1,36 +1,20 @@
-# Meal-Plan-System — documentation index
+# Documentation index
 
-**Product:** FastAPI (`backend/`) + React/Vite (`frontend/`). No mobile app in this repo.
+**Product shape:** **FastAPI** (`backend/`) + **React/Vite** (`frontend/`). There is **no** mobile app in this repo.
 
-**Monorepo (GlucoSense + Meal Plan):** [../../SYSTEM_PIPELINE.md](../../SYSTEM_PIPELINE.md) · [../../ARCHITECTURE.md](../../ARCHITECTURE.md) (workspace root).
+**Integrated workspace (GlucoSense + this app):** see **[../../../SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md)** and **[../../../ARCHITECTURE.md](../../../ARCHITECTURE.md)** at the monorepo root.
 
 | Document | Description |
 |----------|-------------|
-| **[DESIGN_STRUCTURE.md](./DESIGN_STRUCTURE.md)** | **Primary reference:** technology stack, layout, routers, engine, directories, ports, env vars. |
-| [PIPELINE.md](./PIPELINE.md) | Local dev, CI, GitHub Actions, Docker builds, optional ML pipeline. |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Production-oriented notes. |
+| [STRUCTURE.md](./STRUCTURE.md) | Repository folder layout |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Current FastAPI + Vite architecture |
+| [guides/HOW_TO_RUN.md](./guides/HOW_TO_RUN.md) | Run commands, Windows `;` path, timeouts |
+| [guides/SETUP_GUIDE.md](./guides/SETUP_GUIDE.md) | Environment setup |
+| [guides/LEGACY_FOLDER_CLEANUP.md](./guides/LEGACY_FOLDER_CLEANUP.md) | Removing old Node `backend/` junk only |
+| [DEPLOYMENT.md](./DEPLOYMENT.md) | Production-oriented notes |
+| [reference/SYSTEM_DOCUMENTATION.md](./reference/SYSTEM_DOCUMENTATION.md) | Long reference (some sections mix history with current API) |
+| [../frontend/vite.config.js](../frontend/vite.config.js) | Dev server **5173**, proxy `/api` → **8000** (keep a single Vite config file) |
+| [project/](./project/) | Audits & coursework-style summaries |
+| [history/](./history/) | Superseded snapshots |
 
-**Tech stack table:** at the top of [DESIGN_STRUCTURE.md](./DESIGN_STRUCTURE.md) and in the project [README.md](../README.md).
-
-### Guides (`guides/`)
-
-| File | Description |
-|------|-------------|
-| [HOW_TO_RUN.md](./guides/HOW_TO_RUN.md) | Run API + frontend, Windows `;` paths, ports (**8001** / **5175**), troubleshooting. |
-| [CHATBOT.md](./guides/CHATBOT.md) | RAG + LLM chatbot (`/api/chatbot`). |
-| [TYPESENSE.md](./guides/TYPESENSE.md) | Optional Typesense-backed search. |
-| [TROUBLESHOOTING.md](./guides/TROUBLESHOOTING.md) | Common issues. |
-| [LEGACY_FOLDER_CLEANUP.md](./guides/LEGACY_FOLDER_CLEANUP.md) | Removing stray old Node `backend/` folders. |
-
-### Architecture notes (`architecture/`)
-
-| File | Description |
-|------|-------------|
-| [ER_DIAGRAM.md](./architecture/ER_DIAGRAM.md) | ER / schema notes. |
-| [VECTOR_DB_SCHEMA.md](./architecture/VECTOR_DB_SCHEMA.md) | Vector store notes. |
-
-### Frontend
-
-| Path | Description |
-|------|-------------|
-| [frontend/README.md](./frontend/README.md) | Index → [`../frontend/docs/UI_DESIGN_GUIDE.md`](../frontend/docs/UI_DESIGN_GUIDE.md) |
+Frontend UI notes: [`frontend/docs/UI_DESIGN_GUIDE.md`](../frontend/docs/UI_DESIGN_GUIDE.md) · [docs/frontend index](./frontend/README.md)

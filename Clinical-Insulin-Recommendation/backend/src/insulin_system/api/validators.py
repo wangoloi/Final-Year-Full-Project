@@ -18,10 +18,10 @@ NUMERIC_KEYS = (
     "weight", "insulin_sensitivity", "sleep_hours", "creatinine",
 )
 PATIENT_ROW_KEYS = (
-    "patient_id", "gender", "family_history", "food_intake", "previous_medications",
+    "patient_id", "gender", "family_history",
     "age", "glucose_level", "physical_activity", "BMI", "HbA1c", "weight",
     "insulin_sensitivity", "sleep_hours", "creatinine",
-    "iob", "anticipated_carbs", "glucose_trend", "icr", "isf",
+    "icr", "isf",
     "ketone_level", "cgm_sensor_error", "typical_daily_insulin",
 )
 
@@ -48,8 +48,6 @@ def _check_numeric_warnings(sanitized: Dict[str, Any], errors: List) -> List[str
 def _build_patient_row(sanitized: Dict[str, Any]) -> Dict[str, Any]:
     """Build row dict for PatientInput from sanitized body."""
     row = {k: sanitized.get(k) for k in PATIENT_ROW_KEYS}
-    if sanitized.get("medication_name") is not None:
-        row["medication_name"] = sanitized["medication_name"]
     return row
 
 
@@ -73,8 +71,6 @@ def patient_input_to_dataframe(patient: PatientInput):
     numeric_cols = list(schema.NUMERIC) + list(getattr(schema, "CONTEXTUAL_IMPUTE", ()))
     for col in numeric_cols:
         row[col] = _coerce_numeric(row.get(col))
-    if "glucose_trend" not in row:
-        row["glucose_trend"] = "stable"
     return pd.DataFrame([row])
 
 

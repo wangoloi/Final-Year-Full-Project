@@ -7,6 +7,7 @@ import {
   fetchPatientRecords,
   fetchPatientGlucoseReadings,
   fetchPatientDoseEvents,
+  ensurePatientDemoMonitoring,
 } from '../../services/patientsApi'
 import { FiActivity, FiDroplet, FiFileText } from 'react-icons/fi'
 
@@ -43,41 +44,63 @@ export default function PatientRecords({ patient }) {
   const [readings, setReadings] = useState([])
   const [doses, setDoses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [demoSeededNotice, setDemoSeededNotice] = useState(false)
 
   useEffect(() => {
     if (!patient?.id) return
-    setLoading(true)
-    setError(null)
-    Promise.all([
-      fetchPatientRecords(patient.id),
-      fetchPatientGlucoseReadings(patient.id, 168),
-      fetchPatientDoseEvents(patient.id),
-    ])
-      .then(([r, g, d]) => {
-        setRecords(r.records)
-        setReadings(g.readings)
-        setDoses(d.events)
-      })
-      .catch((e) => setError(e?.message || 'Could not load patient records.'))
-      .finally(() => setLoading(false))
+    let cancelled = false
+    setDemoSeededNotice(false)
+
+    async function load() {
+      setLoading(true)
+      try {
+        const ensured = await ensurePatientDemoMonitoring(patient.id)
+        if (!cancelled && ensured.ok && ensured.seeded) {
+          setDemoSeededNotice(true)
+        }
+        const [r, g, d] = await Promise.all([
+          fetchPatientRecords(patient.id),
+          fetchPatientGlucoseReadings(patient.id, 168),
+          fetchPatientDoseEvents(patient.id),
+        ])
+        if (cancelled) return
+        setRecords(Array.isArray(r?.records) ? r.records : [])
+        setReadings(Array.isArray(g?.readings) ? g.readings : [])
+        setDoses(Array.isArray(d?.events) ? d.events : [])
+      } catch {
+        if (!cancelled) {
+          setRecords([])
+          setReadings([])
+          setDoses([])
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [patient?.id])
 
   if (!patient) return null
   if (loading) return <div className="card"><p>Loading records...</p></div>
-  if (error) return <div className="card"><div className="alert alert-warning" role="alert">{error}</div></div>
-
-  const displayName =
-    patient.name != null && patient.name !== '' ? String(patient.name) : 'Patient'
 
   return (
     <div className="patient-records">
       <div className="card">
-        <h2 className="card-heading">{displayName}</h2>
+        <h2 className="card-heading">{patient.name}</h2>
         <p className="card-description">
-          {patient.condition != null && patient.condition !== '' ? String(patient.condition) : ''}
+          {patient.condition}
           {patient.medical_record_number && ` • MRN: ${patient.medical_record_number}`}
         </p>
+        {demoSeededNotice && (
+          <p className="card-description" style={{ marginTop: '0.5rem', color: 'var(--primary, #1976d2)' }}>
+            Demo monitoring data was added so you can explore assessments, glucose, and doses. Replace with real
+            assessments from the Dashboard when available.
+          </p>
+        )}
       </div>
 
       <RecordsSection
@@ -89,7 +112,10 @@ export default function PatientRecords({ patient }) {
           <div>
             <div className="record-row-primary">{formatDate(r.created_at)}</div>
             <div className="record-row-secondary">
-              {r.endpoint} • {r.predicted_class ?? '—'} ({(r.confidence ?? 0) * 100}%)
+              {r.endpoint} • {r.predicted_class ?? '—'}
+              {r.confidence != null
+                ? ` (${r.confidence <= 1 ? Math.round(r.confidence * 100) : Math.round(r.confidence)}%)`
+                : ''}
             </div>
           </div>
         )}

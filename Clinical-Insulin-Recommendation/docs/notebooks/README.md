@@ -1,7 +1,7 @@
 # Research notebooks
 
-Add Jupyter notebooks here for ad-hoc analysis. None are required for the running app.
+Jupyter notebooks for development and reproducibility live here (moved from repo-root `notebooks/`).
 
-Any notebook output (e.g. plots under `output/`) is **gitignored** — regenerate locally if needed.
+- **`insulin_prediction_development.ipynb`** — main development pipeline narrative.
 
-For reproducible training, use **`python run_clinical_insulin_pipeline.py`** from the repo root (see **`docs/RUN.md`**).
+Run headless: `python scripts/notebook/execute_development_notebook.py`

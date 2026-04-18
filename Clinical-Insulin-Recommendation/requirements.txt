@@ -1,5 +1,5 @@
 # Core: pipeline, models, API, React backend (no Streamlit/PyArrow – use Python 3.9–3.12 for best wheel support)
-numpy>=1.21.0
+numpy>=1.26.0,<2.0
 pandas>=1.5.0
 scikit-learn>=1.2.0
 matplotlib>=3.5.0
@@ -25,3 +25,4 @@ nbconvert>=7.0.0
 uvicorn[standard]>=0.24.0
 fastapi>=0.109.0
 slowapi>=0.1.9
+PyJWT>=2.8.0

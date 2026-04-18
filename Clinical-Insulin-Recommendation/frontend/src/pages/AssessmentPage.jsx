@@ -1,7 +1,7 @@
 /**
  * Assessment: patient selection, current assessment form, and recommendation results.
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useClinical } from '../context/ClinicalContext'
 import ConfirmDoseModal from '../components/ConfirmDoseModal'
@@ -10,20 +10,12 @@ import ResourcePanel from '../components/ResourcePanel'
 import FeedbackModal from '../components/FeedbackModal'
 import AssessmentForm from '../components/dashboard/AssessmentForm'
 import RecommendationResult from '../components/dashboard/RecommendationResult'
-import PatientSearchCombobox from '../components/PatientSearchCombobox'
-import { fetchRecommendation, recordDose, submitFeedback } from '../services/dashboardApi'
-import {
-  validateForm,
-  buildBody,
-  initialForm,
-  DEFAULT_AGE,
-  ageFromDateOfBirth,
-  normalizeGenderForAssessment,
-} from '../utils/assessmentFormUtils'
+import { fetchRecommendation, recordDose, submitFeedback, fetchPatientRecentActivity } from '../services/dashboardApi'
+import { validateForm, buildBody, initialForm, DEFAULT_AGE } from '../utils/assessmentFormUtils'
 import { DOSE_CONFIRM_DELAY_MS, WORKSPACE_PATH } from '../constants'
 
 export default function AssessmentPage() {
-  const { setRecentMetrics, recentMetrics, patients, selectedPatientId, setSelectedPatientId, reportApiError } = useClinical()
+  const { setRecentMetrics, recentMetrics, patients, selectedPatientId, setSelectedPatientId } = useClinical()
   const [form, setForm] = useState(initialForm)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -35,34 +27,28 @@ export default function AssessmentPage() {
   const [resourcePanelOpen, setResourcePanelOpen] = useState(false)
   const [resourceId, setResourceId] = useState(null)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackModalVariant, setFeedbackModalVariant] = useState('override')
   const [feedbackSending, setFeedbackSending] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
+  const [toastMessage, setToastMessage] = useState('Dose recorded successfully.')
   const [quickEntryMode, setQuickEntryMode] = useState(false)
-  const lastPrefilledPatientId = useRef(null)
+  const [patientRecentActivity, setPatientRecentActivity] = useState(null)
 
-  /** When the selected patient changes (or their row first loads), fill age from DOB and gender from registration. */
   useEffect(() => {
-    if (!selectedPatientId) {
-      lastPrefilledPatientId.current = null
-      return
+    let cancelled = false
+    async function loadRecent() {
+      if (!selectedPatientId) {
+        setPatientRecentActivity(null)
+        return
+      }
+      const { ok, data } = await fetchPatientRecentActivity(selectedPatientId)
+      if (!cancelled) {
+        setPatientRecentActivity(ok ? data : null)
+      }
     }
-    if (lastPrefilledPatientId.current === selectedPatientId) return
-
-    const p = (patients || []).find(
-      (x) => x.id === selectedPatientId || String(x.id) === String(selectedPatientId),
-    )
-    if (!p) return
-
-    const ageVal = ageFromDateOfBirth(p.date_of_birth)
-    const genderVal = normalizeGenderForAssessment(p.gender)
-
-    lastPrefilledPatientId.current = selectedPatientId
-    setForm((prev) => ({
-      ...prev,
-      age: ageVal != null ? String(ageVal) : prev.age,
-      gender: genderVal != null ? genderVal : prev.gender,
-    }))
-  }, [selectedPatientId, patients])
+    loadRecent()
+    return () => { cancelled = true }
+  }, [selectedPatientId])
 
   useEffect(() => {
     if (!result) return
@@ -91,17 +77,12 @@ export default function AssessmentPage() {
     const formToValidate = quickEntryMode
       ? {
           ...initialForm(),
-          age: form.age != null && form.age !== '' ? form.age : DEFAULT_AGE,
-          gender: form.gender || 'Male',
-          food_intake: 'Medium',
-          previous_medications: 'None',
+          age: DEFAULT_AGE,
+          gender: 'Male',
           glucose_level: form.glucose_level,
           measurement_time: form.measurement_time || initialForm().measurement_time,
           meal_context: form.meal_context || 'fasting',
           activity_context: form.activity_context || 'resting',
-          iob: form.iob,
-          anticipated_carbs: form.anticipated_carbs,
-          glucose_trend: form.glucose_trend,
           patient_id: selectedPatientId,
         }
       : { ...form, patient_id: selectedPatientId }
@@ -121,17 +102,12 @@ export default function AssessmentPage() {
       quickEntryMode
         ? {
             ...initialForm(),
-            age: form.age != null && form.age !== '' ? form.age : DEFAULT_AGE,
-            gender: form.gender || 'Male',
-            food_intake: 'Medium',
-            previous_medications: 'None',
+            age: DEFAULT_AGE,
+            gender: 'Male',
             glucose_level: form.glucose_level,
             measurement_time: form.measurement_time || initialForm().measurement_time,
             meal_context: form.meal_context || 'fasting',
             activity_context: form.activity_context || 'resting',
-            iob: form.iob,
-            anticipated_carbs: form.anticipated_carbs,
-            glucose_trend: form.glucose_trend,
             patient_id: selectedPatientId,
           }
         : { ...form, patient_id: selectedPatientId },
@@ -139,7 +115,6 @@ export default function AssessmentPage() {
     const { ok, data, status } = await fetchRecommendation(body)
 
     if (!ok) {
-      reportApiError(new Error(data?.detail || data?.message || 'Recommendation failed'), 'Assessment failed.')
       if (status === 422 && Array.isArray(data.errors)) {
         setFieldErrors(data.errors)
         setError(data.detail || 'Validation failed.')
@@ -151,6 +126,10 @@ export default function AssessmentPage() {
     }
 
     setResult(data)
+    try {
+      const refreshed = await fetchPatientRecentActivity(selectedPatientId)
+      if (refreshed.ok) setPatientRecentActivity(refreshed.data)
+    } catch (_) {}
     setLoading(false)
   }
 
@@ -165,19 +144,17 @@ export default function AssessmentPage() {
   const handleConfirmDose = async () => {
     setDoseAdministering(true)
     try {
-      const ok = await recordDose({
+      await recordDose({
         meal_bolus: doseSummary?.mealBolus,
         correction_dose: doseSummary?.correctionDose,
         total_dose: doseSummary?.totalDose,
         patient_id: selectedPatientId,
       })
-      if (!ok) throw new Error('Could not record dose.')
-    } catch (e) {
-      reportApiError(e, 'Dose record failed.')
-    }
+    } catch (_) {}
     await new Promise((r) => setTimeout(r, DOSE_CONFIRM_DELAY_MS))
     setDoseAdministering(false)
     setConfirmDoseOpen(false)
+    setToastMessage('Dose recorded successfully.')
     setToastShow(true)
   }
 
@@ -199,9 +176,38 @@ export default function AssessmentPage() {
       })
       if (ok) {
         setFeedbackSent(true)
-        setTimeout(() => { setFeedbackOpen(false); setFeedbackSent(false) }, 1500)
+        setTimeout(() => {
+          setFeedbackOpen(false)
+          setFeedbackSent(false)
+          setFeedbackModalVariant('override')
+        }, 1500)
       } else {
         throw new Error(data?.detail || 'Failed to submit feedback')
+      }
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setFeedbackSending(false)
+    }
+  }
+
+  const handleApproveRecommendation = async () => {
+    if (!result) return
+    setFeedbackSending(true)
+    try {
+      const { ok, data } = await submitFeedback({
+        request_id: result.request_id,
+        predicted_class: result.predicted_class,
+        clinician_action: 'approved',
+        actual_dose_units: null,
+        override_reason: '',
+        input_summary: buildBody(form),
+      })
+      if (ok) {
+        setToastMessage('Recommendation approved and recorded.')
+        setToastShow(true)
+      } else {
+        throw new Error(data?.detail || 'Failed to record approval')
       }
     } catch (e) {
       setError(e.message)
@@ -214,15 +220,19 @@ export default function AssessmentPage() {
     <div className="dashboard">
       <section className="dashboard-section dashboard-patient-entry">
         <div className="card card-patient-selector">
-          <label className="form-field" htmlFor="assessment-patient-search">
+          <label className="form-field">
             <span className="form-field-label">Patient *</span>
-            <PatientSearchCombobox
-              id="assessment-patient-search"
-              patients={patients || []}
-              value={selectedPatientId}
-              onChange={(id) => setSelectedPatientId(id == null ? null : Number(id))}
-              placeholder={(!patients || patients.length === 0) ? 'Register a patient first…' : 'Search by name or ID…'}
-            />
+            <select
+              className="form-select"
+              value={selectedPatientId ?? ''}
+              onChange={(e) => setSelectedPatientId(e.target.value ? Number(e.target.value) : null)}
+              required
+            >
+              <option value="">— Select patient —</option>
+              {(patients || []).map((p) => (
+                <option key={p.id} value={p.id}>{p.name} ({p.condition})</option>
+              ))}
+            </select>
           </label>
           {(!patients || patients.length === 0) && (
             <p className="card-description" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
@@ -235,6 +245,7 @@ export default function AssessmentPage() {
           fieldErrors={fieldErrors}
           quickEntryMode={quickEntryMode}
           recentMetrics={recentMetrics}
+          patientRecentActivity={patientRecentActivity}
           loading={loading}
           onChange={handleChange}
           onQuickEntryChange={handleQuickEntryChange}
@@ -250,8 +261,17 @@ export default function AssessmentPage() {
         <RecommendationResult
           result={result}
           form={form}
+          reviewSubmitting={feedbackSending}
           onAdministerDose={() => setConfirmDoseOpen(true)}
-          onReportOverride={() => setFeedbackOpen(true)}
+          onApproveRecommendation={handleApproveRecommendation}
+          onRejectRecommendation={() => {
+            setFeedbackModalVariant('reject')
+            setFeedbackOpen(true)
+          }}
+          onOverrideRecommendation={() => {
+            setFeedbackModalVariant('override')
+            setFeedbackOpen(true)
+          }}
           onOpenResource={openResource}
         />
       )}
@@ -269,11 +289,15 @@ export default function AssessmentPage() {
         doseSummary={doseSummary}
         loading={doseAdministering}
       />
-      <SuccessToast message="Dose recorded successfully." show={toastShow} onDismiss={() => setToastShow(false)} />
+      <SuccessToast message={toastMessage} show={toastShow} onDismiss={() => setToastShow(false)} />
       <ResourcePanel open={resourcePanelOpen} onClose={() => setResourcePanelOpen(false)} resourceId={resourceId} />
       <FeedbackModal
         open={feedbackOpen}
-        onClose={() => setFeedbackOpen(false)}
+        variant={feedbackModalVariant}
+        onClose={() => {
+          setFeedbackOpen(false)
+          setFeedbackModalVariant('override')
+        }}
         onSubmit={handleFeedbackSubmit}
         loading={feedbackSending}
         success={feedbackSent}

@@ -11,27 +11,29 @@ import os
 import uuid
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
 import requests
+from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from ..config.schema import DashboardConfig, GLUCOSE_ZONES, get_glucose_zone
 from ..safety.audit import log_prediction
 from ..monitoring import get_monitor
 from ..storage import (
     init_db,
+    check_database_integrity,
     insert_record,
+    insert_smart_sensor_prediction,
     insert_clinician_feedback,
     get_clinician_feedback,
     get_records,
-    delete_record,
     get_notifications,
     insert_notification,
     delete_notifications_by_type,
     mark_notifications_read,
+    mark_notification_read,
+    delete_notification,
     get_glucose_readings,
-    get_glucose_points_from_records,
-    get_glucose_points_from_all_records,
     insert_glucose_reading,
     insert_dose_event,
     get_dose_events,
@@ -42,22 +44,23 @@ from ..storage import (
     get_setting,
     set_setting,
     run_seed_if_needed,
+    seed_demo_cohort,
+    ensure_patient_demo_monitoring,
     list_patients,
+    list_removed_patients,
     get_patient,
     create_patient,
     update_patient,
     patient_exists,
-    archive_patient,
+    delete_patient,
     restore_patient,
-    purge_patient,
-    list_archived_patients,
 )
 from ..storage.backup import create_backup, list_backups, restore_backup
 
-from .helpers.alert_helpers import check_critical_alerts
-from .helpers.glucose_trends_helpers import build_trend_series
-from .helpers.patient_context_helpers import update_patient_context_from_body
-from .helpers.route_data import (
+from .alert_helpers import check_critical_alerts
+from .glucose_trends_helpers import build_trend_series
+from .patient_context_helpers import update_patient_context_from_body
+from .route_data import (
     build_input_summary,
     DEFAULT_ALERTS_LIMIT,
     DEFAULT_GLUCOSE_TRENDS_HOURS,
@@ -80,12 +83,112 @@ from .engine import (
     get_model_info,
     get_feature_importance,
 )
+from .smart_sensor_engine import (
+    smart_sensor_bundle_available,
+    run_smart_sensor_predict,
+    run_smart_sensor_recommend,
+    get_smart_sensor_feature_importance,
+)
+from .smart_sensor_explain import run_smart_sensor_explain
+from .shap_background import load_background_if_needed
+from .readiness import get_readiness, ready_response
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["GlucoSense"])
 
-# GET /api/health/live is defined on the FastAPI app in backend/app.py (before this router)
-# so liveness never competes with SPA static mounts or heavy imports.
+
+@router.get("/health/live", tags=["health"])
+def api_health_live():
+    """Liveness only — no DB or model checks."""
+    return JSONResponse(content={"status": "ok", "live": True})
+
+
+@router.get("/health/ready", tags=["health"])
+def api_health_ready():
+    """Readiness for startup orchestration: DB + runtime artifacts must be ready."""
+    return ready_response()
+
+
+@router.get("/health/db", tags=["health"])
+def api_health_db():
+    """SQLite integrity check (durability). Safe to poll after backup/restore."""
+    try:
+        run_seed_if_needed()
+        return check_database_integrity()
+    except Exception as e:
+        return {"ok": False, "detail": str(e)}
+
+
+class MealPlanSsoRequest(BaseModel):
+    """Body forwarded to Meal Plan POST /api/auth/integration/glucosense."""
+
+    email: str
+    display_name: Optional[str] = None
+    role: str = Field(default="patient")
+
+
+def _meal_plan_api_base_url() -> str:
+    return (
+        os.environ.get("MEAL_PLAN_API_URL", "").strip()
+        or os.environ.get("VITE_MEAL_PLAN_API_URL", "").strip()
+        or "http://127.0.0.1:8001"
+    ).rstrip("/")
+
+
+def _glucosense_embed_key() -> str:
+    """Must match Meal Plan API GLUCOSENSE_EMBED_KEY."""
+    return (
+        os.environ.get("GLUCOSENSE_EMBED_KEY", "").strip()
+        or os.environ.get("MEAL_PLAN_EMBED_SECRET", "").strip()
+        or "dev-embed-local-only"
+    )
+
+
+@router.post("/meal-plan/sso", tags=["meal-plan"])
+def meal_plan_sso_proxy(body: MealPlanSsoRequest):
+    """
+    Proxy iframe SSO from the GlucoSense SPA to the Meal Plan API.
+    The browser calls same-origin /api/meal-plan/sso (Vite → :8000); this handler adds the embed key.
+    """
+    try:
+        base = _meal_plan_api_base_url()
+        url = f"{base}/api/auth/integration/glucosense"
+        role = body.role if body.role in ("clinician", "patient") else "patient"
+        payload = {
+            "email": body.email.strip().lower(),
+            "display_name": body.display_name,
+            "role": role,
+        }
+        try:
+            r = requests.post(
+                url,
+                json=payload,
+                headers={"X-Glucosense-Embed-Key": _glucosense_embed_key()},
+                timeout=20,
+            )
+        except requests.RequestException as exc:
+            logger.warning("Meal Plan SSO proxy: request failed: %s", exc)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Meal Plan API unreachable at {base}. Start the Meal Plan backend (port 8001). ({exc})",
+            ) from exc
+        try:
+            data = r.json()
+        except Exception:
+            data = {"detail": (r.text or r.reason or "Meal Plan SSO failed")[:500]}
+        return JSONResponse(status_code=int(r.status_code), content=data)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Meal Plan SSO proxy failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+try:
+    init_db()
+    run_seed_if_needed()
+except Exception:
+    pass
 
 
 def _validation_response(errors: list) -> JSONResponse:
@@ -94,6 +197,20 @@ def _validation_response(errors: list) -> JSONResponse:
         status_code=422,
         content={"detail": "Validation failed", "errors": errors},
     )
+
+
+def _http_exception_smart_sensor(exc: Exception, *, action: str) -> HTTPException:
+    """Map sklearn bundle/schema mismatches to a clear 503; otherwise 500."""
+    msg = str(exc)
+    if "unseen at fit time" in msg or "Feature names should match" in msg:
+        return HTTPException(
+            status_code=503,
+            detail=(
+                "Smart Sensor model bundle does not match the current preprocessing code. "
+                "Regenerate it from the repository root: python run_pipeline.py"
+            ),
+        )
+    return HTTPException(status_code=500, detail=f"{action} failed: {msg}")
 
 
 def _safe_glucose_float(body: Dict[str, Any]) -> Optional[float]:
@@ -118,73 +235,48 @@ def _record_glucose_trend(body: Dict[str, Any], patient_id: Optional[int] = None
         logger.warning("Failed to record glucose for trend: %s", e)
 
 
-def _meal_plan_base_url() -> str:
-    """
-    Internal base URL for the Meal Plan API (no trailing slash).
-    In Docker Compose this should be the service name, e.g. http://meal-api:8001.
-    """
-    u = os.environ.get("MEAL_PLAN_API_URL") or os.environ.get("MEAL_PLAN_API_INTERNAL_URL") or ""
-    u = str(u).strip().rstrip("/")
-    if not u:
-        raise HTTPException(status_code=500, detail="Meal Plan SSO not configured (missing MEAL_PLAN_API_URL).")
-    return u
-
-
-def _meal_plan_embed_key() -> str:
-    key = (os.environ.get("GLUCOSENSE_EMBED_KEY") or "").strip()
-    if not key:
-        raise HTTPException(status_code=500, detail="Meal Plan SSO not configured (missing GLUCOSENSE_EMBED_KEY).")
-    return key
-
-
-@router.post("/meal-plan/sso")
-def meal_plan_sso(body: Dict[str, Any]):
-    """
-    Server-side SSO bridge: the browser calls this endpoint on the Clinical API, and the Clinical API
-    calls Meal Plan API /api/auth/integration/glucosense using the embed key stored in env.
-
-    This avoids exposing the embed key in the browser bundle (deployment hardening).
-    """
-    email = (body.get("email") or "").strip().lower()
-    role = (body.get("role") or "").strip().lower()
-    display_name = body.get("display_name") or body.get("displayName") or None
-
-    if not email or "@" not in email:
-        raise HTTPException(status_code=400, detail="email is required")
-    if role not in ("clinician", "patient"):
-        raise HTTPException(status_code=400, detail="role must be clinician or patient")
-
-    url = f"{_meal_plan_base_url()}/api/auth/integration/glucosense"
-    try:
-        r = requests.post(
-            url,
-            headers={
-                "Content-Type": "application/json",
-                "X-Glucosense-Embed-Key": _meal_plan_embed_key(),
-            },
-            json={"email": email, "display_name": display_name, "role": role},
-            timeout=12,
-        )
-    except requests.RequestException as e:
-        raise HTTPException(status_code=503, detail=f"Meal Plan API unreachable: {e}") from e
-
-    try:
-        data = r.json() if r.text else {}
-    except Exception:
-        data = {}
-    if not r.ok:
-        detail = data.get("detail") if isinstance(data, dict) else None
-        raise HTTPException(status_code=r.status_code, detail=detail or "Meal Plan SSO failed")
-    token = data.get("token") if isinstance(data, dict) else None
-    if not token:
-        raise HTTPException(status_code=502, detail="Meal Plan SSO returned no token")
-    return {"token": token}
-
-
 @router.post("/predict", response_model=PredictionResponse)
 def predict(body: Dict[str, Any]):
     """Get insulin dosage prediction for a single patient."""
     request_id = str(uuid.uuid4())
+    if smart_sensor_bundle_available():
+        try:
+            from smart_sensor_ml.inference import validate_inference_payload
+
+            validate_inference_payload(body)
+        except ValueError as e:
+            return _validation_response([{"field": "body", "message": str(e)}])
+        try:
+            resp = run_smart_sensor_predict(body)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("Smart Sensor prediction failed: %s", e)
+            raise _http_exception_smart_sensor(e, action="Smart Sensor prediction")
+        resp.request_id = request_id
+        log_prediction("/predict", request_id, resp.predicted_class, resp.confidence, request_summary={"pipeline": "smart_sensor"})
+        try:
+            insert_record(
+                endpoint="predict",
+                request_id=request_id,
+                predicted_class=resp.predicted_class,
+                confidence=resp.confidence,
+                input_summary=build_input_summary(body),
+                response_summary={"predicted_class": resp.predicted_class, "confidence": resp.confidence, "pipeline": "smart_sensor"},
+            )
+            insert_smart_sensor_prediction(
+                str(body.get("measurement_time", "")),
+                resp.predicted_class,
+                resp.confidence,
+                resp.probability_breakdown,
+                patient_id=None,
+                meal_context=str(body.get("meal_context", "")),
+                activity_context=str(body.get("activity_context", "")),
+            )
+        except Exception:
+            pass
+        return resp
+
     try:
         patient, _, errors = validate_patient_input(body)
     except ValueError as e:
@@ -203,13 +295,6 @@ def predict(body: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
 
-    predict_pid: Optional[int] = None
-    if body.get("patient_id") is not None:
-        try:
-            predict_pid = int(body["patient_id"])
-        except (TypeError, ValueError):
-            predict_pid = None
-
     resp.request_id = request_id
     log_prediction("/predict", request_id, resp.predicted_class, resp.confidence, request_summary={"n_fields": len(body)})
     try:
@@ -220,24 +305,62 @@ def predict(body: Dict[str, Any]):
             confidence=resp.confidence,
             input_summary=build_input_summary(body),
             response_summary={"predicted_class": resp.predicted_class, "confidence": resp.confidence},
-            patient_id=predict_pid,
         )
     except Exception:
         pass
-    _record_glucose_trend(body, patient_id=predict_pid)
     return resp
 
 
 @router.post("/explain", response_model=ExplainResponse)
-def explain(_body: Dict[str, Any]):
-    """SHAP explain — disabled until a new model bundle is integrated."""
-    raise HTTPException(
-        status_code=503,
-        detail=(
-            "Explain endpoint is unavailable: the previous ML pipeline was removed. "
-            "Re-integrate SHAP when a new inference bundle is added."
-        ),
+def explain(body: Dict[str, Any]):
+    """Explain prediction using Smart Sensor ProductionBundle (SHAP on transformed features)."""
+    request_id = str(uuid.uuid4())
+    if not smart_sensor_bundle_available():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Smart Sensor model not available. Train the pipeline so "
+                "outputs/smart_sensor_ml/model_bundle/bundle.joblib exists."
+            ),
+        )
+    try:
+        from smart_sensor_ml.inference import validate_inference_payload
+
+        validate_inference_payload(body)
+    except ValueError as e:
+        return _validation_response([{"field": "body", "message": str(e)}])
+    try:
+        resp = run_smart_sensor_explain(body)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Smart Sensor explain failed: %s", e)
+        raise _http_exception_smart_sensor(e, action="Explain")
+
+    resp.request_id = request_id
+    log_prediction(
+        "/explain",
+        request_id,
+        resp.predicted_class,
+        resp.confidence,
+        request_summary={"pipeline": "smart_sensor"},
     )
+    try:
+        insert_record(
+            endpoint="explain",
+            request_id=request_id,
+            predicted_class=resp.predicted_class,
+            confidence=resp.confidence,
+            input_summary=build_input_summary(body),
+            response_summary={
+                "predicted_class": resp.predicted_class,
+                "confidence": resp.confidence,
+                "pipeline": "smart_sensor",
+            },
+        )
+    except Exception:
+        pass
+    return resp
 
 
 @router.post("/batch-recommend")
@@ -254,6 +377,7 @@ def batch_recommend(body: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Model not loaded: {e}")
 
+    background = load_background_if_needed()
     results = []
     for i, p in enumerate(patients):
         try:
@@ -262,7 +386,7 @@ def batch_recommend(body: Dict[str, Any]):
                 results.append({"index": i, "error": errors[0].get("message", "Validation failed")})
                 continue
             df = patient_input_to_dataframe(patient)
-            resp = run_recommend(patient, df, bundle)
+            resp = run_recommend(patient, df, bundle, background)
             results.append({"index": i, "recommendation": resp.model_dump()})
         except Exception as e:
             results.append({"index": i, "error": str(e)})
@@ -289,6 +413,64 @@ def recommend(body: Dict[str, Any]):
         )
 
     request_id = str(uuid.uuid4())
+    if smart_sensor_bundle_available():
+        try:
+            from smart_sensor_ml.inference import validate_inference_payload
+
+            validate_inference_payload(body)
+        except ValueError as e:
+            return _validation_response([{"field": "body", "message": str(e)}])
+        try:
+            resp = run_smart_sensor_recommend(body)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("Smart Sensor recommendation failed: %s", e)
+            raise _http_exception_smart_sensor(e, action="Recommendation")
+        resp.request_id = request_id
+        log_prediction("/recommend", request_id, resp.predicted_class, resp.confidence, resp.is_high_risk)
+        try:
+            get_monitor().log_prediction(resp.predicted_class, resp.confidence, resp.is_high_risk, "recommend")
+        except Exception:
+            pass
+        try:
+            insert_record(
+                endpoint="recommend",
+                request_id=request_id,
+                predicted_class=resp.predicted_class,
+                confidence=resp.confidence,
+                is_high_risk=resp.is_high_risk,
+                input_summary=build_input_summary(body),
+                response_summary={
+                    "predicted_class": resp.predicted_class,
+                    "confidence": resp.confidence,
+                    "dosage_action": resp.dosage_action,
+                    "is_high_risk": resp.is_high_risk,
+                    "recommendation_summary": resp.recommendation_summary,
+                    "recommended_action": getattr(resp, "recommended_action", None) or resp.recommendation_summary,
+                    "pipeline": "smart_sensor",
+                },
+                patient_id=pid,
+            )
+            insert_smart_sensor_prediction(
+                str(body.get("measurement_time", "")),
+                resp.predicted_class,
+                resp.confidence,
+                resp.probability_breakdown,
+                patient_id=pid,
+                meal_context=str(body.get("meal_context", "")),
+                activity_context=str(body.get("activity_context", "")),
+            )
+        except Exception:
+            pass
+        update_patient_context_from_body(body)
+        _record_glucose_trend(body, patient_id=pid)
+        try:
+            check_critical_alerts(_safe_glucose_float(body), resp.is_high_risk, resp.predicted_class)
+        except Exception:
+            pass
+        return resp
+
     try:
         patient, _, errors = validate_patient_input(body)
     except ValueError as e:
@@ -302,12 +484,17 @@ def recommend(body: Dict[str, Any]):
         logger.error("Model load failed for /recommend: %s", e)
         raise HTTPException(
             status_code=503,
-            detail=f"No inference model loaded. Add outputs/best_model/inference_bundle.joblib or wire a new ML path. Error: {e}",
+            detail=(
+                "Model not loaded. Generate a local demo bundle from the Clinical-Insulin-Recommendation "
+                "folder: python scripts/quick_train_inference_bundle.py. "
+                f"Error: {e}"
+            )
         )
 
     df = patient_input_to_dataframe(patient)
+    background = load_background_if_needed()
     try:
-        resp = run_recommend(patient, df, bundle)
+        resp = run_recommend(patient, df, bundle, background)
     except Exception as e:
         logger.exception("Recommendation failed: %s", e)
         raise HTTPException(
@@ -334,6 +521,8 @@ def recommend(body: Dict[str, Any]):
                 "confidence": resp.confidence,
                 "dosage_action": resp.dosage_action,
                 "is_high_risk": resp.is_high_risk,
+                "recommendation_summary": resp.recommendation_summary,
+                "recommended_action": getattr(resp, "recommended_action", None) or resp.recommendation_summary,
             },
             patient_id=pid,
         )
@@ -352,6 +541,27 @@ def recommend(body: Dict[str, Any]):
 @router.get("/model-info", response_model=ModelInfoResponse)
 def model_info():
     """Get model performance metrics and metadata."""
+    if smart_sensor_bundle_available():
+        try:
+            from .smart_sensor_engine import load_smart_sensor_bundle
+
+            b = load_smart_sensor_bundle()
+            meta = b.metadata or {}
+            if meta.get("task") == "regression":
+                mname, mval = "r2_test", float(meta.get("r2_test", 0.0))
+            else:
+                mname = "composite_score"
+                mval = float(meta.get("composite_score_test", meta.get("composite_score", 0.0)))
+            return ModelInfoResponse(
+                model_name=b.model_name,
+                metric_name=mname,
+                metric_value=mval,
+                feature_names=list(b.feature_names),
+                classes=list(b.class_names),
+                n_features=len(b.feature_names),
+            )
+        except Exception as e:
+            logger.warning("Smart Sensor model-info fallback: %s", e)
     try:
         bundle = get_bundle()
     except Exception as e:
@@ -362,6 +572,20 @@ def model_info():
 @router.get("/feature-importance", response_model=FeatureImportanceResponse)
 def feature_importance():
     """Get global feature importance (built-in from model)."""
+    if smart_sensor_bundle_available():
+        try:
+            out = get_smart_sensor_feature_importance()
+            if out is not None:
+                return out
+        except Exception as e:
+            logger.warning("Smart Sensor feature importance unavailable: %s", e)
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Feature importance is not available for this Smart Sensor model "
+                "(no tree importances or linear coefficients). Inspect offline evaluation metrics."
+            ),
+        )
     try:
         bundle = get_bundle()
     except Exception as e:
@@ -420,43 +644,20 @@ def list_records(limit: int = DEFAULT_RECORDS_LIMIT):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/records/{record_id}")
-def delete_record_route(record_id: int):
-    """Delete a single assessment record (and any linked clinician feedback)."""
-    try:
-        ok = delete_record(record_id)
-        if not ok:
-            raise HTTPException(status_code=404, detail="Record not found.")
-        return {"status": "ok", "deleted_id": record_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/health")
 def health():
-    """Readiness: DB + seed. Always returns HTTP 200 JSON (use /api/health/live for liveness only)."""
+    """Combined health snapshot with DB readiness and runtime warmup details."""
     try:
         init_db()
-    except BaseException as e:
-        logger.exception("GET /api/health: init_db failed")
-        return JSONResponse(
-            status_code=200,
-            content={"status": "degraded", "database": str(e)},
-        )
-    try:
         run_seed_if_needed()
     except BaseException as e:
-        logger.exception("GET /api/health: run_seed_if_needed failed")
-        return JSONResponse(
-            status_code=200,
-            content={"status": "ok", "database": f"ready (seed: {e})"},
-        )
-    return JSONResponse(
-        status_code=200,
-        content={"status": "ok", "database": "ready"},
-    )
+        logger.exception("GET /api/health bootstrap check failed")
+        state = get_readiness()
+        state["status"] = "degraded"
+        state["database"] = {"status": "error", "detail": str(e)}
+        return JSONResponse(status_code=200, content=state)
+    state = get_readiness()
+    return JSONResponse(status_code=200, content=state)
 
 
 @router.get("/notifications")
@@ -507,6 +708,34 @@ def notifications_mark_read():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.patch("/notifications/{notification_id}/read")
+def notification_mark_read(notification_id: int):
+    """Mark a single notification as read."""
+    try:
+        ok = mark_notification_read(notification_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/notifications/{notification_id}")
+def notification_delete(notification_id: int):
+    """Delete a single notification (used for auto-delete after read)."""
+    try:
+        ok = delete_notification(notification_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/alerts")
 def list_alerts(limit: int = DEFAULT_ALERTS_LIMIT, unresolved_only: bool = True):
     """List critical-condition alerts (unresolved by default)."""
@@ -550,24 +779,46 @@ def resolve_alert_route(body: Dict[str, Any]):
 
 
 @router.get("/patients")
-def api_list_patients():
-    """List all registered patients."""
+def api_list_patients(removed_only: int = Query(0, ge=0, le=1, description="Set to 1 to list soft-deleted patients only.")):
+    """
+    List registered patients (active). Use removed_only=1 to list soft-deleted patients only.
+    Integer flag parses reliably everywhere (bool query strings can be mishandled by some proxies/clients).
+    """
     try:
         run_seed_if_needed()
+        if removed_only == 1:
+            items = list_removed_patients()
+            return {"patients": items, "count": len(items), "removed_only": True}
         items = list_patients()
-        return {"patients": items, "count": len(items)}
+        return {"patients": items, "count": len(items), "removed_only": False}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/patients/deleted")
-@router.get("/patients/archived")
-def api_list_deleted_patients():
-    """List soft-deleted patients (data retained until permanent delete or restore)."""
+def _removed_patients_response() -> Dict[str, Any]:
+    """Shared payload for removed-patient listing (soft-deleted rows)."""
+    run_seed_if_needed()
+    items = list_removed_patients()
+    return {"patients": items, "count": len(items)}
+
+
+@router.get("/patients/removed")
+def api_list_removed_patients():
+    """List patients removed from the register (soft-deleted); monitoring data is retained until restored."""
     try:
-        run_seed_if_needed()
-        items = list_archived_patients()
-        return {"patients": items, "count": len(items)}
+        return _removed_patients_response()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/removed-patients")
+def api_list_removed_patients_unambiguous():
+    """
+    Same as GET /patients/removed but uses a path that cannot be mistaken for /patients/{patient_id}
+    (some clients or router order treated 'removed' as an id and returned 422, which the UI showed as an empty list).
+    """
+    try:
+        return _removed_patients_response()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -579,9 +830,41 @@ def api_get_patient(patient_id: int):
         p = get_patient(patient_id)
         if not p:
             raise HTTPException(status_code=404, detail="Patient not found")
+        p.pop("deleted_at", None)
+        p.pop("mrn_backup", None)
         return p
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/patients/{patient_id}/ensure-demo-monitoring")
+def api_ensure_patient_demo_monitoring(patient_id: int):
+    """If this patient has no monitoring rows yet, insert demo assessments, glucose, and doses (for demos / Records page)."""
+    try:
+        run_seed_if_needed()
+        if not patient_exists(patient_id):
+            raise HTTPException(status_code=404, detail="Patient not found")
+        result = ensure_patient_demo_monitoring(patient_id)
+        if not result.get("ok"):
+            raise HTTPException(status_code=500, detail=result.get("error", "ensure failed"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/patients/seed-demo")
+def api_seed_demo_patients(body: Optional[Dict[str, Any]] = Body(default=None)):
+    """Create named demo patients (if missing) and populate monitoring data. Optional body: {\"force\": true} to refresh readings."""
+    try:
+        run_seed_if_needed()
+        force = bool((body or {}).get("force"))
+        result = seed_demo_cohort(force=force)
+        items = list_patients()
+        return {"status": "ok", **result, "patients": items, "count": len(items)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -637,45 +920,46 @@ def api_update_patient(patient_id: int, body: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/patients/{patient_id}")
+def api_delete_patient(patient_id: int):
+    """Remove patient from the active list (soft delete). Linked monitoring data is kept for retrieval."""
+    try:
+        run_seed_if_needed()
+        ok = delete_patient(patient_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        return {"status": "ok", "soft_deleted": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/patients/{patient_id}/restore")
 def api_restore_patient(patient_id: int):
-    """Restore a deleted patient and their linked assessment data (clears deleted_at)."""
-    row = get_patient(patient_id, allow_archived=True)
-    if not row or not row.get("deleted_at"):
-        raise HTTPException(status_code=404, detail="Deleted patient not found")
+    """Restore a soft-deleted patient to the active register (retrieves prior monitoring data)."""
     try:
-        if restore_patient(patient_id):
-            return {"status": "ok", "id": patient_id}
-        raise HTTPException(status_code=404, detail="Patient not found")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/patients/{patient_id}/permanent")
-def api_purge_patient(patient_id: int):
-    """Permanently delete a patient and all linked assessment rows (cannot be undone)."""
-    row = get_patient(patient_id, allow_archived=True)
-    if not row:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    try:
-        purge_patient(patient_id)
-        return {"status": "ok", "purged_id": patient_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/patients/{patient_id}")
-def api_soft_delete_patient(patient_id: int):
-    """Soft-delete a patient (removed from active list). Linked data is kept until restore or permanent delete."""
-    if not patient_exists(patient_id):
-        raise HTTPException(status_code=404, detail="Patient not found")
-    try:
-        archive_patient(patient_id)
-        return {"status": "ok", "deleted_id": patient_id}
+        run_seed_if_needed()
+        ok, err = restore_patient(patient_id)
+        if err == "not_found":
+            raise HTTPException(status_code=404, detail="Patient not found")
+        if err == "not_removed":
+            raise HTTPException(status_code=400, detail="Patient is not in the removed list")
+        if err == "mrn_conflict":
+            raise HTTPException(
+                status_code=409,
+                detail="Medical record number conflicts with another active patient. Change the other patient's MRN or edit this one after restore.",
+            )
+        if err == "restore_failed":
+            raise HTTPException(status_code=500, detail="Could not restore patient (no row updated). Try again.")
+        if not ok:
+            raise HTTPException(status_code=500, detail="Could not restore patient")
+        if err == "mrn_skipped_conflict":
+            return {
+                "status": "ok",
+                "warning": "Restored without medical record number because it matched another active patient. Edit this patient to set a unique MRN (previous value kept in backup until you save).",
+            }
+        return {"status": "ok"}
     except HTTPException:
         raise
     except Exception as e:
@@ -714,6 +998,40 @@ def api_patient_doses(patient_id: int, limit: int = 50):
     try:
         events = get_dose_events(limit=limit, patient_id=patient_id)
         return {"events": events, "count": len(events)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/patients/{patient_id}/recent-activity")
+def api_patient_recent_activity(patient_id: int):
+    """
+    Return latest glucose reading and latest insulin dose event for a patient.
+    Used by the assessment form to show recent context when a clinician selects a patient.
+    """
+    if not patient_exists(patient_id):
+        raise HTTPException(status_code=404, detail="Patient not found")
+    try:
+        # glucose_readings are sorted ascending by reading_at; last is newest
+        readings = get_glucose_readings(hours=365 * 24, patient_id=patient_id)
+        last_glucose = readings[-1] if readings else None
+        # dose_events are sorted newest first
+        doses = get_dose_events(limit=1, patient_id=patient_id)
+        last_dose = doses[0] if doses else None
+        # records are sorted newest first
+        recs = get_records(limit=25, patient_id=patient_id)
+        last_rec = next((r for r in recs if r.get("endpoint") == "recommend"), None)
+        last_rec_summary = None
+        if last_rec and isinstance(last_rec.get("response_summary"), dict):
+            last_rec_summary = {
+                "created_at": last_rec.get("created_at"),
+                **last_rec.get("response_summary"),
+            }
+        return {
+            "patient_id": patient_id,
+            "last_glucose": last_glucose,
+            "last_dose": last_dose,
+            "last_recommendation": last_rec_summary,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -795,118 +1113,17 @@ def interpret_glucose(glucose: Optional[float] = None):
     return {"glucose": gl, "zone": zone}
 
 
-def _calendar_window_utc(date_str: str, tz_name: str, span_hours: int):
-    """Start (inclusive) and end (exclusive) of a calendar span in UTC for ``date_str`` in ``tz_name``."""
-    from datetime import datetime, timedelta, timezone
-    from zoneinfo import ZoneInfo
-
-    try:
-        zi = ZoneInfo(tz_name)
-    except Exception:
-        raise HTTPException(status_code=400, detail=f"Invalid timezone: {tz_name}")
-    parts = date_str.strip().split("-")
-    if len(parts) != 3:
-        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
-    y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
-    local_start = datetime(y, m, d, 0, 0, 0, tzinfo=zi)
-    if span_hours == 24:
-        local_end = local_start + timedelta(days=1)
-    elif span_hours == 12:
-        local_end = local_start + timedelta(hours=12)
-    else:
-        raise HTTPException(status_code=400, detail="With date and timezone, hours must be 12 or 24")
-    start_utc = local_start.astimezone(timezone.utc)
-    end_utc = local_end.astimezone(timezone.utc)
-    return start_utc, end_utc
-
-
 @router.get("/glucose-trends")
-def glucose_trends(
-    hours: int = DEFAULT_GLUCOSE_TRENDS_HOURS,
-    patient_id: Optional[int] = None,
-    date: Optional[str] = None,
-    tz: Optional[str] = Query(None, alias="timezone"),
-    limit: Optional[int] = Query(
-        None,
-        ge=1,
-        le=500,
-        description="Most recent N assessment glucose readings (ignores date/timezone/hours when set).",
-    ),
-):
-    """Glucose for chart from assessment input only (records.input_summary.glucose_level). Not glucose_readings.
-
-    Prefer ``limit`` for the **most recent** N readings. Alternatively pass ``date`` + ``timezone`` + ``hours`` 12|24
-    for a calendar window, or ``hours`` alone for a rolling window ending now.
-    """
+def glucose_trends(hours: int = DEFAULT_GLUCOSE_TRENDS_HOURS):
+    """Glucose readings for chart. Returns series with time, actual, predicted."""
     try:
         try:
             run_seed_if_needed()
         except Exception:
             pass
-
-        use_recent = limit is not None and int(limit) >= 1
-        use_calendar = (
-            not use_recent
-            and date is not None
-            and str(date).strip() != ""
-            and tz is not None
-            and str(tz).strip() != ""
-        )
-        start_iso: Optional[str] = None
-        end_iso: Optional[str] = None
-        window_mode = "rolling"
-        if use_recent:
-            window_mode = "recent"
-        elif use_calendar:
-            if hours not in (12, 24):
-                raise HTTPException(status_code=400, detail="With date and timezone, hours must be 12 or 24")
-            start_utc, end_utc = _calendar_window_utc(date, tz, hours)
-            start_iso = start_utc.isoformat()
-            end_iso = end_utc.isoformat()
-            window_mode = "calendar"
-
-        lim_val = min(int(limit), 500) if use_recent else None
-
-        if patient_id is not None:
-            if not patient_exists(patient_id):
-                raise HTTPException(status_code=404, detail="Patient not found.")
-            if use_recent:
-                rows = get_glucose_points_from_records(int(patient_id), limit=lim_val)
-            elif use_calendar:
-                rows = get_glucose_points_from_records(
-                    int(patient_id), hours=None, start_iso=start_iso, end_iso=end_iso
-                )
-            else:
-                rows = get_glucose_points_from_records(int(patient_id), hours=hours)
-        else:
-            if use_recent:
-                rows = get_glucose_points_from_all_records(limit=lim_val)
-            elif use_calendar:
-                rows = get_glucose_points_from_all_records(hours=None, start_iso=start_iso, end_iso=end_iso)
-            else:
-                rows = get_glucose_points_from_all_records(hours=hours)
-
-        label_hours = hours if hours in (12, 24) else 24
-        series = build_trend_series(rows, hours=label_hours)
-        out: Dict[str, Any] = {
-            "series": series,
-            "count": len(series),
-            "hours": hours,
-            "patient_id": int(patient_id) if patient_id is not None else None,
-            "window_mode": window_mode,
-        }
-        if use_recent:
-            out["limit"] = lim_val
-            if tz is not None and str(tz).strip():
-                out["timezone"] = str(tz).strip()
-        if use_calendar:
-            out["date"] = str(date).strip()
-            out["timezone"] = str(tz).strip()
-            out["window_start"] = start_iso
-            out["window_end"] = end_iso
-        return out
-    except HTTPException:
-        raise
+        rows = get_glucose_readings(hours=hours)
+        series = build_trend_series(rows)
+        return {"series": series, "count": len(series)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

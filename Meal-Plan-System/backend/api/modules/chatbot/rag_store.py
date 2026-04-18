@@ -3,6 +3,14 @@ Chroma + sentence-transformers vector store over food items (RAG retrieval).
 """
 from __future__ import annotations
 
+import os
+
+# Before any chromadb import: avoid telemetry (PostHog API mismatches on some installs).
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
+os.environ.setdefault("CHROMA_TELEMETRY", "false")
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
+
 import logging
 from typing import List
 
@@ -43,9 +51,12 @@ def _persistent_client():
     global _client
     if _client is None:
         import chromadb
+        from chromadb.config import Settings
 
         config.CHROMA_PERSIST_DIR.mkdir(parents=True, exist_ok=True)
-        _client = chromadb.PersistentClient(path=str(config.CHROMA_PERSIST_DIR))
+        # Explicitly disable telemetry — avoids PostHog API mismatches (capture() arity) with posthog>=3.
+        _settings = Settings(anonymized_telemetry=False)
+        _client = chromadb.PersistentClient(path=str(config.CHROMA_PERSIST_DIR), settings=_settings)
     return _client
 
 
@@ -87,12 +98,6 @@ def rebuild_rag_index() -> int:
         coll.add(ids=ids, documents=docs)
         logger.info("RAG Chroma index rebuilt", extra={"documents": len(foods)})
         return len(foods)
-    except ImportError as e:
-        logger.warning(
-            "RAG index rebuild skipped (missing package): %s — pip install -r Meal-Plan-System/backend/requirements.txt",
-            e,
-        )
-        raise
     except Exception as e:
         logger.exception("RAG index rebuild failed: %s", e)
         raise

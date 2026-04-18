@@ -16,7 +16,6 @@ from .constants import (
     ICR_MIN,
     ISF_MAX,
     ISF_MIN,
-    MEDICATION_NAME_MAX_LENGTH,
     PATIENT_ID_MAX_LENGTH,
     SANITIZE_STRING_MAX_LEN,
     SANITIZE_STRING_SHORT_LEN,
@@ -25,20 +24,14 @@ from .constants import (
     TYPICAL_DAILY_INSULIN_MIN,
     AGE_MAX,
     AGE_MIN,
-    ANTICIPATED_CARBS_MAX_G,
-    ANTICIPATED_CARBS_MIN_G,
     BMI_MAX,
     BMI_MIN,
-    FOOD_INTAKE_VALUES,
     GLUCOSE_TREND_VALUES,
     GENDER_VALUES,
     GLUCOSE_MAX_MGDL,
     GLUCOSE_MIN_MGDL,
     HBA1C_MAX_PCT,
     HBA1C_MIN_PCT,
-    IOB_MAX_ML,
-    IOB_MIN_ML,
-    PREVIOUS_MEDICATION_VALUES,
     WEIGHT_MAX_KG,
     WEIGHT_MIN_KG,
 )
@@ -84,8 +77,6 @@ def validate_age(value: Any) -> Tuple[Optional[float], Optional[str]]:
 # Map API values (capitalized) to training-data format (lowercase) for encoder compatibility
 _API_TO_TRAINING = {
     "Male": "male", "Female": "female",
-    "Low": "low", "Medium": "medium", "High": "high",
-    "None": "none", "Insulin": "insulin", "Oral": "oral",
     "Yes": "yes", "No": "no",
 }
 
@@ -99,30 +90,6 @@ def validate_gender(value: Any) -> Tuple[Optional[str], Optional[str]]:
         return None, None
     if s not in GENDER_VALUES:
         return None, f"Gender must be one of: {', '.join(GENDER_VALUES)}."
-    return _API_TO_TRAINING.get(s, s.lower()), None
-
-
-def validate_food_intake(value: Any) -> Tuple[Optional[str], Optional[str]]:
-    """Validate food intake category. Allowed: Low, Medium, High. Normalized to lowercase for encoder."""
-    if value is None or value == "":
-        return None, None
-    s = _sanitize_string(value, SANITIZE_STRING_TREND_LEN)
-    if not s:
-        return None, None
-    if s not in FOOD_INTAKE_VALUES:
-        return None, f"Food intake must be one of: {', '.join(FOOD_INTAKE_VALUES)}."
-    return _API_TO_TRAINING.get(s, s.lower()), None
-
-
-def validate_previous_medication(value: Any) -> Tuple[Optional[str], Optional[str]]:
-    """Validate previous medication. Allowed: None, Insulin, Oral. Normalized to lowercase for encoder."""
-    if value is None or value == "":
-        return None, None
-    s = _sanitize_string(value, SANITIZE_STRING_SHORT_LEN)
-    if not s:
-        return None, None
-    if s not in PREVIOUS_MEDICATION_VALUES:
-        return None, f"Previous medication must be one of: {', '.join(PREVIOUS_MEDICATION_VALUES)}."
     return _API_TO_TRAINING.get(s, s.lower()), None
 
 
@@ -177,24 +144,12 @@ def validate_weight(value: Any) -> Tuple[Optional[float], Optional[str]]:
     return _validate_optional_numeric(value, WEIGHT_MIN_KG, WEIGHT_MAX_KG, "Weight", "kg")
 
 
-def validate_medication_name(value: Any, required: bool = False) -> Tuple[Optional[str], Optional[str]]:
-    """Validate medication name (when Oral is selected). Sanitized, max length."""
-    if value is None or value == "":
-        if required:
-            return None, "Medication name is required when Previous medication is Oral."
-        return None, None
-    s = _sanitize_string(value, MEDICATION_NAME_MAX_LENGTH)
-    if required and not s:
-        return None, "Medication name is required when Previous medication is Oral."
-    return s if s else None, None
-
-
 def validate_assessment_input(body: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     """
     Apply all domain validation rules to the raw request body.
     Returns (sanitized_body, list of errors).
-    Required (core inputs only): age, gender, glucose_level, food_intake, previous_medications;
-    medication_name when previous_medications is Oral. All other fields optional (imputed by pipeline).
+    Required (core inputs only): age, gender, glucose_level.
+    All other fields optional (imputed by pipeline).
     """
     errors: List[Dict[str, str]] = []
     out: Dict[str, Any] = {}
@@ -215,34 +170,11 @@ def validate_assessment_input(body: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
         errors.append({"field": "gender", "message": "Gender is required."})
     out["gender"] = gender_val
 
-    # Food intake (required)
-    food_val, food_err = validate_food_intake(body.get("food_intake"))
-    if food_err:
-        errors.append({"field": "food_intake", "message": food_err})
-    elif not food_val or (isinstance(food_val, str) and not food_val.strip()):
-        errors.append({"field": "food_intake", "message": "Food intake is required."})
-    out["food_intake"] = food_val
-
-    # Previous medication (required) + medication name when Oral
-    prev_val, prev_err = validate_previous_medication(body.get("previous_medications"))
-    if prev_err:
-        errors.append({"field": "previous_medications", "message": prev_err})
-    elif not prev_val or (isinstance(prev_val, str) and not prev_val.strip()):
-        errors.append({"field": "previous_medications", "message": "Previous medication is required."})
-    out["previous_medications"] = prev_val
-
     # Glucose level (required; medically valid range)
     gl_val, gl_err = validate_glucose_level(body.get("glucose_level"))
     if gl_err:
         errors.append({"field": "glucose_level", "message": gl_err})
     out["glucose_level"] = gl_val
-
-    medication_required = prev_val == "Oral"
-    med_name_val, med_name_err = validate_medication_name(body.get("medication_name"), required=medication_required)
-    if med_name_err:
-        errors.append({"field": "medication_name", "message": med_name_err})
-    if med_name_val is not None:
-        out["medication_name"] = med_name_val
 
     # Optional numeric with medical range validation (BMI, HbA1c, weight)
     bmi_val, bmi_err = validate_bmi(body.get("BMI"))
@@ -260,31 +192,7 @@ def validate_assessment_input(body: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
         errors.append({"field": "weight", "message": weight_err})
     out["weight"] = weight_val
 
-    # Type 1 dosing context (optional): IOB, anticipated carbs, glucose trend
-    iob_val, iob_err = _validate_optional_numeric(
-        body.get("iob"), IOB_MIN_ML, IOB_MAX_ML, "Insulin on board (IOB)", "mL"
-    )
-    if iob_err:
-        errors.append({"field": "iob", "message": iob_err})
-    out["iob"] = iob_val
-
-    ac_val, ac_err = _validate_optional_numeric(
-        body.get("anticipated_carbs"), ANTICIPATED_CARBS_MIN_G, ANTICIPATED_CARBS_MAX_G,
-        "Anticipated carbs", "g"
-    )
-    if ac_err:
-        errors.append({"field": "anticipated_carbs", "message": ac_err})
-    out["anticipated_carbs"] = ac_val
-
-    gt_val = body.get("glucose_trend")
-    if gt_val is not None and gt_val != "":
-        s = _sanitize_string(gt_val, SANITIZE_STRING_TREND_LEN).lower()
-        if s not in GLUCOSE_TREND_VALUES:
-            errors.append({"field": "glucose_trend", "message": f"Glucose trend must be one of: {', '.join(GLUCOSE_TREND_VALUES)}."})
-        else:
-            out["glucose_trend"] = s
-    else:
-        out["glucose_trend"] = None
+    # Dosing-context inputs removed from API/UI; model uses safe defaults internally.
 
     # Ketone level (optional; high = critical alert)
     kt = body.get("ketone_level")
@@ -352,4 +260,4 @@ def validate_assessment_input(body: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
 
 def get_required_fields_for_recommendation() -> List[str]:
     """Fields that must be non-empty for a valid recommendation request (core inputs only)."""
-    return ["age", "gender", "glucose_level", "food_intake", "previous_medications"]
+    return ["age", "gender", "glucose_level"]

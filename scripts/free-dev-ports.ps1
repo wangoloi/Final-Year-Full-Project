@@ -16,7 +16,7 @@ foreach ($line in $lines) {
 
 foreach ($procId in $toKill.Keys) {
   Write-Host "Stopping PID $procId"
-  Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+  taskkill /PID $procId /F /T | Out-Null
 }
 
 Write-Host "Done."

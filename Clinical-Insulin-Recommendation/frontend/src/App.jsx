@@ -1,9 +1,6 @@
-/**
- * Route map: public landing/login; patient /meal-plan; clinician /workspace/* with Layout + ApiGate.
- * Meal Plan embed: /workspace/meal-plan + MealPlanSsoBridge (iframe + JWT to Meal API :8001).
- */
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useClinical } from './context/ClinicalContext'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { getPublicSiteHostname, WORKSPACE_PATH } from './constants'
 import ApiGate from './components/ApiGate'
 import Layout from './components/Layout'
 import LandingPage from './pages/LandingPage'
@@ -18,53 +15,41 @@ import ModelInfo from './pages/ModelInfo'
 import Patients from './pages/Patients'
 import MealPlanEmbedPage from './pages/MealPlanEmbedPage'
 import AssessmentPage from './pages/AssessmentPage'
-import { WORKSPACE_PATH } from './constants'
 
+/** Root opens the Clinical-Insulin workspace directly (no Meal Plan login on this app). */
 function HomeEntry() {
-  const { isSignedIn, userRole } = useClinical()
-  if (!isSignedIn) return <LandingPage />
-  if (userRole === 'patient') return <Navigate to="/meal-plan" replace />
-  if (userRole === 'clinician') return <Navigate to={WORKSPACE_PATH} replace />
-  return <Navigate to="/login" replace />
-}
-
-function RequireSignedIn({ children }) {
-  const { isSignedIn } = useClinical()
-  if (!isSignedIn) return <Navigate to="/login" replace state={{ from: 'protected' }} />
-  return children
-}
-
-function RequireClinician({ children }) {
-  const { userRole } = useClinical()
-  if (userRole !== 'clinician') return <Navigate to="/meal-plan" replace />
-  return children
+  return <Navigate to={WORKSPACE_PATH} replace />
 }
 
 export default function App() {
+  const location = useLocation()
+  useEffect(() => {
+    try {
+      const host = getPublicSiteHostname()
+      const parts = (location.pathname || '/').split('/').filter(Boolean)
+      const pageRaw = parts.length ? parts[parts.length - 1] : 'home'
+      const page = pageRaw.replace(/-/g, ' ')
+      const pageLabel = page.charAt(0).toUpperCase() + page.slice(1)
+      document.title = `GlucoSense — ${host} — ${pageLabel}`
+    } catch (_) {
+      document.title = 'GlucoSense'
+    }
+  }, [location.pathname])
+
   return (
     <Routes>
       <Route path="/" element={<HomeEntry />} />
+      <Route path="/welcome" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
 
-      <Route
-        path="/meal-plan"
-        element={(
-          <RequireSignedIn>
-            <MealPlanShell />
-          </RequireSignedIn>
-        )}
-      />
+      <Route path="/meal-plan" element={<MealPlanShell />} />
 
       <Route
         path={WORKSPACE_PATH}
         element={(
-          <RequireSignedIn>
-            <RequireClinician>
-              <ApiGate>
-                <Layout />
-              </ApiGate>
-            </RequireClinician>
-          </RequireSignedIn>
+          <ApiGate>
+            <Layout />
+          </ApiGate>
         )}
       >
         <Route index element={<Dashboard />} />
@@ -78,7 +63,7 @@ export default function App() {
         <Route path="meal-plan" element={<MealPlanEmbedPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to={WORKSPACE_PATH} replace />} />
     </Routes>
   )
 }

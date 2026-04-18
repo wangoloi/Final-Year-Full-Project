@@ -9,16 +9,18 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from api.models import User
 from api.core.config import JWT_SECRET
+from api.core.rbac import normalize_role, ROLE_PATIENT
 from api.core.exceptions import ValidationError, AuthError
 from api.core.logging_config import get_logger
 
 logger = get_logger("api.auth.service")
 
 
-def create_token(user_id: int) -> str:
-    """Generate JWT for user."""
+def create_token(user_id: int, role: str | None = None) -> str:
+    """Generate JWT for user (includes role claim for downstream Clinical API)."""
     # Integer exp avoids PyJWT/datetime edge cases across versions
-    payload = {"userId": user_id, "exp": int(time.time()) + 7 * 24 * 3600}
+    r = normalize_role(role)
+    payload = {"userId": user_id, "role": r, "exp": int(time.time()) + 7 * 24 * 3600}
     secret = JWT_SECRET if isinstance(JWT_SECRET, str) else str(JWT_SECRET)
     token = jwt.encode(payload, secret, algorithm="HS256")
     # PyJWT 1.x returns bytes; 2.x returns str — JSON response must be str
@@ -43,7 +45,7 @@ def validate_username_available(db: Session, username: str, email: str) -> None:
 
 
 def create_user(db: Session, data: dict) -> User:
-    """Create and persist user."""
+    """Create and persist user. Public registration is always patient role."""
     user = User(
         username=data["username"],
         email=data["email"],
@@ -51,6 +53,7 @@ def create_user(db: Session, data: dict) -> User:
         last_name=data.get("last_name"),
         has_diabetes=data.get("has_diabetes", False),
         diabetes_type=data.get("diabetes_type"),
+        role=ROLE_PATIENT,
     )
     user.set_password(data["password"])
     db.add(user)
@@ -111,9 +114,10 @@ def get_or_create_user_for_glucosense_embed(
     normalized_email = (email or "").strip().lower()
     user = db.query(User).filter(User.email == normalized_email).first()
     if user:
-        # Embed must land on /app, not onboarding — sync flag for accounts created outside SSO.
-        if user.onboarding_completed is False:
-            user.onboarding_completed = True
+        # Sync role from trusted GlucoSense embed (server-enforced handoff)
+        nr = normalize_role(role)
+        if user.role != nr:
+            user.role = nr
             db.add(user)
             db.commit()
             db.refresh(user)
@@ -133,8 +137,9 @@ def get_or_create_user_for_glucosense_embed(
         username=username,
         email=normalized_email,
         first_name=first,
-        has_diabetes=role == "patient",
-        diabetes_type="type1" if role == "patient" else None,
+        has_diabetes=normalize_role(role) == "patient",
+        diabetes_type="type1" if normalize_role(role) == "patient" else None,
+        role=normalize_role(role),
     )
     user.set_password(random_password)
     user.onboarding_completed = True
@@ -146,11 +151,6 @@ def get_or_create_user_for_glucosense_embed(
         db.rollback()
         user = db.query(User).filter(User.email == normalized_email).first()
         if user:
-            if user.onboarding_completed is False:
-                user.onboarding_completed = True
-                db.add(user)
-                db.commit()
-                db.refresh(user)
             return user
         raise
     db.refresh(user)

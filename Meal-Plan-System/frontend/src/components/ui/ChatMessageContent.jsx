@@ -1,10 +1,20 @@
-import ReactMarkdown from 'react-markdown';
+function stripMarkdown(text) {
+  return String(text)
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .trim();
+}
 
 /**
- * Renders assistant/user text with Markdown (**bold**, lists). Keeps plain text safe (no raw HTML).
+ * Renders assistant/user text without exposing raw markdown markers.
  */
 export default function ChatMessageContent({ content, variant = 'assistant' }) {
-  const text = typeof content === 'string' ? content : '';
+  const text = typeof content === 'string' ? stripMarkdown(content) : '';
+  const blocks = text.split(/\n\s*\n/).filter(Boolean);
+
   return (
     <div
       className={
@@ -13,26 +23,33 @@ export default function ChatMessageContent({ content, variant = 'assistant' }) {
           : 'chat-md chat-md--assistant'
       }
     >
-      <ReactMarkdown
-        components={{
-          p: ({ children }) => <p className="chat-md-p">{children}</p>,
-          strong: ({ children }) => (
-            <strong className="font-semibold text-inherit">{children}</strong>
-          ),
-          em: ({ children }) => <em className="italic opacity-95">{children}</em>,
-          ul: ({ children }) => (
-            <ul className="chat-md-ul list-disc pl-5">{children}</ul>
-          ),
-          ol: ({ children }) => (
-            <ol className="chat-md-ol list-decimal pl-5">{children}</ol>
-          ),
-          li: ({ children }) => (
-            <li className="chat-md-li mb-1 pl-0.5">{children}</li>
-          ),
-        }}
-      >
-        {text}
-      </ReactMarkdown>
+      {blocks.map((block, index) => {
+        const lines = block.split('\n').filter(Boolean);
+        const isBulletList = lines.every((line) => /^[-*]\s+/.test(line.trim()));
+
+        if (isBulletList) {
+          return (
+            <ul key={index} className="chat-md-ul list-disc pl-5">
+              {lines.map((line, lineIndex) => (
+                <li key={lineIndex} className="chat-md-li mb-1 pl-0.5">
+                  {line.replace(/^[-*]\s+/, '')}
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        return (
+          <p key={index} className="chat-md-p">
+            {lines.map((line, lineIndex) => (
+              <span key={lineIndex}>
+                {line}
+                {lineIndex < lines.length - 1 ? <br /> : null}
+              </span>
+            ))}
+          </p>
+        );
+      })}
     </div>
   );
 }

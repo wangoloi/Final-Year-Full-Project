@@ -101,4 +101,11 @@ def chatbot_message(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        return {"response": FALLBACK, "error": str(e), "session_id": data.session_id}
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Chatbot is temporarily unavailable. Retry in a moment or use search while it warms up.",
+                "fallback_suggestion": FALLBACK,
+                "error": str(e),
+            },
+        )

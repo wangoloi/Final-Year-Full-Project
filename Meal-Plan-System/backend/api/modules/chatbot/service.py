@@ -5,6 +5,12 @@ from api.core import config
 from api.models import ChatMessage
 from api.modules.search.service import search_foods
 from api.modules.chatbot import llm_client, rag_chat, topic_nlp
+from api.modules.chatbot.meal_guidance import (
+    build_food_list_reply,
+    build_meal_reply,
+    detect_meal_type,
+    is_food_list_request,
+)
 from api.modules.chatbot.response_builder import (
     is_greeting,
     is_gi_question,
@@ -13,9 +19,6 @@ from api.modules.chatbot.response_builder import (
     is_low_bg_question,
     is_stability_question,
     is_general_food_question,
-    is_nutrition_continuation_query,
-    is_fruit_glucose_question,
-    is_low_sugar_foods_question,
     extract_glucose_readings_mgdl,
     classify_numeric_glucose_scenario,
     build_glucose_numeric_reply,
@@ -27,18 +30,13 @@ from api.modules.chatbot.response_builder import (
     build_stability_reply,
     build_food_reply,
     build_fallback_reply,
-    build_nutrition_continuation_reply,
-    build_fruit_glucose_reply,
-    build_low_sugar_foods_reply,
-    append_disclaimer_if_needed,
-    strip_disclaimer_suffix,
-    is_scope_intent_query,
-    build_scope_welcome_reply,
-    build_off_topic_guidance_reply,
+    DISCLAIMER,
 )
 from api.core.logging_config import get_logger
 
 logger = get_logger("api.chatbot.service")
+
+_HISTORY_STRIP_AT = "_This is general information only"
 
 _FALLBACK_SEARCH_TERMS = (
     "vegetables",
@@ -69,8 +67,8 @@ def load_prior_history(db: Session, user_id: int, session_id: int) -> list[dict]
     for r in rows:
         role = r.role if r.role in ("user", "assistant") else "user"
         content = (r.content or "").strip()
-        if role == "assistant":
-            content = strip_disclaimer_suffix(content)
+        if role == "assistant" and _HISTORY_STRIP_AT in content:
+            content = content.split(_HISTORY_STRIP_AT, 1)[0].strip()
         if content:
             out.append({"role": role, "content": content})
     return out
@@ -135,19 +133,15 @@ def generate_reply(db: Session, user_id: int, message: str, session_id: int) -> 
     save_message(db, user_id, "user", message, session_id)
     session_service.maybe_set_title_from_first_message(db, session_id, message)
 
-    if is_scope_intent_query(msg):
-        reply = build_scope_welcome_reply()
-        save_message(db, user_id, "assistant", reply, session_id)
-        return reply
-
-    skip_topic = is_greeting(msg) or (bool(prior) and is_nutrition_continuation_query(msg))
+    skip_topic = is_greeting(msg)
     topic_analysis = None
     if not skip_topic and config.CHATBOT_TOPIC_NLP_ENABLED:
         topic_analysis = topic_nlp.analyze_message(msg)
         if topic_analysis.get("ok") and not topic_analysis.get("on_topic"):
-            body = build_off_topic_guidance_reply()
-            save_message(db, user_id, "assistant", body, session_id)
-            return body
+            body = topic_nlp.off_topic_reply(topic_analysis["shap_text"])
+            full = body + DISCLAIMER
+            save_message(db, user_id, "assistant", full, session_id)
+            return full
 
     # Explicit mg/dL-style numbers (e.g. 70 vs 120): deterministic, distinct guidance.
     # Runs before LLM so answers stay consistent even when an API key is set.
@@ -155,9 +149,25 @@ def generate_reply(db: Session, user_id: int, message: str, session_id: int) -> 
     if readings and (scenario := classify_numeric_glucose_scenario(readings)):
         foods_num = retrieve_foods(db, msg, user_id)
         reply = build_glucose_numeric_reply(scenario, readings, foods_num)
-        full = append_disclaimer_if_needed(reply)
+        full = reply + DISCLAIMER
         save_message(db, user_id, "assistant", full, session_id)
         return full
+
+    if not is_greeting(msg):
+        meal_type = detect_meal_type(msg)
+        if meal_type:
+            reply = build_meal_reply(db, msg, meal_type)
+            if reply:
+                full = reply + DISCLAIMER
+                save_message(db, user_id, "assistant", full, session_id)
+                return full
+
+        if is_food_list_request(msg):
+            reply = build_food_list_reply(db, msg)
+            if reply:
+                full = reply + DISCLAIMER
+                save_message(db, user_id, "assistant", full, session_id)
+                return full
 
     use_llm = (
         not config.CHATBOT_USE_LEGACY_ONLY
@@ -168,28 +178,20 @@ def generate_reply(db: Session, user_id: int, message: str, session_id: int) -> 
         try:
             reply, _ = rag_chat.generate_rag_reply(db, msg, conversation_history=prior)
             if reply:
-                save_message(db, user_id, "assistant", reply, session_id)
-                return reply
+                full = reply + DISCLAIMER
+                save_message(db, user_id, "assistant", full, session_id)
+                return full
         except Exception as e:
             logger.warning("RAG+LLM chat failed, using rule-based fallback", extra={"error": str(e)})
 
     foods = retrieve_foods(db, msg, user_id=user_id)
 
-    if is_nutrition_continuation_query(msg) and prior:
-        alt = retrieve_foods(db, "vegetables beans oats yogurt berries lentils", user_id=user_id)
-        if alt:
-            foods = alt
-        reply = build_nutrition_continuation_reply(foods)
-    elif is_greeting(msg):
+    if is_greeting(msg):
         reply = build_greeting_reply()
     elif is_high_bg_question(msg):
         reply = build_high_bg_reply()
     elif is_low_bg_question(msg):
         reply = build_low_bg_reply()
-    elif is_fruit_glucose_question(msg):
-        reply = build_fruit_glucose_reply(foods)
-    elif is_low_sugar_foods_question(msg):
-        reply = build_low_sugar_foods_reply(foods)
     elif is_gi_question(msg):
         reply = build_gi_reply()
     elif is_carb_question(msg):
@@ -201,7 +203,6 @@ def generate_reply(db: Session, user_id: int, message: str, session_id: int) -> 
     else:
         reply = build_fallback_reply(foods)
 
-    if not is_greeting(msg):
-        reply = append_disclaimer_if_needed(reply)
+    reply += DISCLAIMER
     save_message(db, user_id, "assistant", reply, session_id)
     return reply

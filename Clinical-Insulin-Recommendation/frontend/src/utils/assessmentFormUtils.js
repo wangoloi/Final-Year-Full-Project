@@ -3,9 +3,8 @@
  * Data structures and validation logic separated from UI.
  */
 import {
-  AGE_MIN, AGE_MAX, GENDER_OPTIONS, FOOD_INTAKE_OPTIONS, PREVIOUS_MEDICATION_OPTIONS,
+  AGE_MIN, AGE_MAX, GENDER_OPTIONS,
   GLUCOSE_MIN, GLUCOSE_MAX, BMI_MIN, BMI_MAX, HBA1C_MIN, HBA1C_MAX, WEIGHT_MIN, WEIGHT_MAX,
-  IOB_MAX_UNITS, ANTICIPATED_CARBS_MAX_G,
   MEAL_CONTEXT_OPTIONS, ACTIVITY_CONTEXT_OPTIONS,
 } from '../constants'
 
@@ -22,53 +21,17 @@ export const NUMERIC_FIELDS = [
   { key: 'weight', label: 'Weight kg (optional)' },
 ]
 export const NUMERIC_OPTIONAL_KEYS = ['physical_activity', 'insulin_sensitivity', 'sleep_hours', 'creatinine', 'family_history']
-export const DOSING_CONTEXT_KEYS = ['iob', 'anticipated_carbs', 'glucose_trend']
 export const DEFAULT_AGE = '30'
 
-/**
- * Whole-number age from patient registration date of birth (YYYY-MM-DD).
- * Returns null if DOB missing or out of allowed range.
- */
-export function ageFromDateOfBirth(dateOfBirth) {
-  if (!dateOfBirth || typeof dateOfBirth !== 'string') return null
-  const m = String(dateOfBirth).trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (!m) return null
-  const y = Number(m[1])
-  const mo = Number(m[2])
-  const day = Number(m[3])
-  const birth = new Date(y, mo - 1, day)
-  if (Number.isNaN(birth.getTime())) return null
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  const md = today.getMonth() - birth.getMonth()
-  if (md < 0 || (md === 0 && today.getDate() < birth.getDate())) age -= 1
-  if (age < AGE_MIN || age > AGE_MAX) return null
-  return age
-}
-
-/** Map stored patient gender to assessment dropdown values. */
-export function normalizeGenderForAssessment(g) {
-  if (!g || typeof g !== 'string') return null
-  const t = g.trim()
-  if (GENDER_OPTIONS.includes(t)) return t
-  const lower = t.toLowerCase()
-  if (lower === 'm' || lower === 'male') return 'Male'
-  if (lower === 'f' || lower === 'female') return 'Female'
-  return null
-}
-
 export function initialForm() {
-  const o = { patient_id: '', medication_name: '' }
+  const o = { patient_id: '' }
   o.age = DEFAULT_AGE
   o.measurement_time = defaultMeasurementTimeLocal()
   o.meal_context = 'fasting'
   o.activity_context = 'resting'
   NUMERIC_FIELDS.forEach(({ key }) => { o[key] = '' })
   NUMERIC_OPTIONAL_KEYS.forEach((key) => { o[key] = '' })
-  DOSING_CONTEXT_KEYS.forEach((key) => { o[key] = '' })
   o.gender = 'Male'
-  o.food_intake = 'Medium'
-  o.previous_medications = 'None'
   return o
 }
 
@@ -77,8 +40,6 @@ export function validateForm(form) {
   _validateMeasurementContext(form, errors)
   _validateAge(form, errors)
   _validateGender(form, errors)
-  _validateFoodIntake(form, errors)
-  _validatePreviousMedications(form, errors)
   _validateGlucose(form, errors)
   _validateOptionalNumeric(form, errors)
   return errors
@@ -134,35 +95,6 @@ function _validateGender(form, errors) {
   }
 }
 
-function _validateFoodIntake(form, errors) {
-  const food = String(form.food_intake || '').trim()
-  if (!food) {
-    errors.push({ field: 'food_intake', message: 'Food intake is required.' })
-    return
-  }
-  if (!FOOD_INTAKE_OPTIONS.includes(food)) {
-    errors.push({ field: 'food_intake', message: `Food intake must be one of: ${FOOD_INTAKE_OPTIONS.join(', ')}.` })
-  }
-}
-
-function _validatePreviousMedications(form, errors) {
-  const prevMed = String(form.previous_medications || '').trim()
-  if (!prevMed) {
-    errors.push({ field: 'previous_medications', message: 'Previous medication is required.' })
-    return
-  }
-  if (!PREVIOUS_MEDICATION_OPTIONS.includes(prevMed)) {
-    errors.push({ field: 'previous_medications', message: `Previous medication must be one of: ${PREVIOUS_MEDICATION_OPTIONS.join(', ')}.` })
-    return
-  }
-  if (prevMed === 'Oral') {
-    const medName = String(form.medication_name || '').trim()
-    if (!medName) {
-      errors.push({ field: 'medication_name', message: 'Medication name is required when Previous medication is Oral.' })
-    }
-  }
-}
-
 function _validateGlucose(form, errors) {
   const gl = form.glucose_level !== '' && form.glucose_level != null ? Number(form.glucose_level) : null
   if (gl === null || gl === '') {
@@ -208,11 +140,6 @@ export function buildBody(form) {
   if (form.activity_context) body.activity_context = String(form.activity_context).trim()
   if (form.age !== '' && form.age != null) body.age = Number(form.age)
   if (form.gender) body.gender = form.gender
-  if (form.food_intake) body.food_intake = form.food_intake
-  if (form.previous_medications) body.previous_medications = form.previous_medications
-  if (form.previous_medications === 'Oral' && form.medication_name) {
-    body.medication_name = String(form.medication_name).trim()
-  }
   NUMERIC_FIELDS.forEach(({ key }) => {
     if (form[key] !== '' && form[key] != null) body[key] = Number(form[key])
   })
@@ -221,15 +148,5 @@ export function buildBody(form) {
       body[key] = key === 'family_history' ? String(form[key]) : Number(form[key])
     }
   })
-  if (form.iob !== '' && form.iob != null && !Number.isNaN(Number(form.iob))) {
-    const units = Number(form.iob)
-    body.iob = Math.min(IOB_MAX_UNITS, Math.max(0, units)) / 100
-  }
-  if (form.anticipated_carbs !== '' && form.anticipated_carbs != null && !Number.isNaN(Number(form.anticipated_carbs))) {
-    body.anticipated_carbs = Number(form.anticipated_carbs)
-  }
-  if (form.glucose_trend && String(form.glucose_trend).trim()) {
-    body.glucose_trend = String(form.glucose_trend).trim().toLowerCase()
-  }
   return body
 }

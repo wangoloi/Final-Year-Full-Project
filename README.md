@@ -1,102 +1,49 @@
-# GlucoSense — Integrated Clinical & Meal Planning Workspace
+# Final year project — GlucoSense + Meal Plan (integrated)
 
-**GlucoSense** is a final-year integration project that combines a clinical insulin decision-support portal with a companion meal-planning system. The workspace demonstrates how clinical and nutrition apps can operate together while keeping clinical APIs and meal APIs separated.
-
-> This project is educational/demo-only. Insulin and meal recommendations are assistive and should not be used instead of medical advice.
+You run **three processes**: Meal Plan API (**8001**), GlucoSense API + portal (**8000** + **5173**), Meal Plan UI (**5175**). GlucoSense keeps port **8000** for clinical APIs; the meal app must use **8001** so routes are not mixed up.
 
 ---
 
-## Project summary
+## How to start the full system
 
-This repository contains two coordinated applications:
+### Option A — One command (Windows, recommended)
 
-- **Clinical insulin support** (`Clinical-Insulin-Recommendation/`)
-  - FastAPI backend
-  - React frontend with Vite
-  - Patient management, glucose assessment, insulin guidance, charts, alerts, and reports
-  - Machine learning pipeline and model artifacts for insulin recommendation
-
-- **Meal planning companion** (`Meal-Plan-System/`)
-  - FastAPI backend
-  - React frontend with Vite
-  - Food search, meal recommendations, meal logging, and optional chatbot support
-  - Separate database and API surface from the clinical app
-
-These two apps are integrated so the GlucoSense portal can embed the meal planning experience while preserving clear boundary lines between the clinical and meal systems.
-
----
-
-## Key features
-
-- Clinician dashboard and patient assessment flow
-- Model-assisted insulin guidance with visual context
-- Separate meal planning UI and API, integrated by iframe and session flow
-- Clear API separation: clinical API on `8000`, meal API on `8001`
-- Windows-friendly integrated launch scripts
-- Production-like Docker deployment support
-
----
-
-## Repository layout
-
-```text
-Glucosense app/
-├── .gitignore
-├── ARCHITECTURE.md
-├── DEPLOY.md
-├── FRONTEND_BACKEND_AUDIT.md
-├── README.md
-├── SYSTEM_PIPELINE.md
-├── docker-compose.yml
-├── package.json
-├── package-lock.json
-├── scripts/
-│   └── start-integrated.ps1
-├── Clinical-Insulin-Recommendation/
-│   ├── backend/
-│   ├── frontend/
-│   ├── data/
-│   └── scripts/
-└── Meal-Plan-System/
-    ├── backend/
-    ├── frontend/
-    └── docs/
-```
-
----
-
-## Running the integrated workspace
-
-### Recommended: integrated startup (Windows)
-
-1. Open PowerShell at the repo root:
+1. Open **PowerShell**.
+2. Go to the project root (the folder that contains `scripts` and `Clinical-Insulin-Recommendation`):
 
    ```powershell
-   Set-Location -LiteralPath "e:\Glucosense app"
+   Set-Location -LiteralPath "e:\final year3;2 project"
    ```
 
-2. Start the integrated stack:
+   Use your real path; **`-LiteralPath`** is required if the folder name contains `;`.
+
+3. Run:
 
    ```powershell
    powershell -ExecutionPolicy Bypass -File ".\scripts\start-integrated.ps1"
    ```
 
-3. Confirm three windows appear:
-   - Meal Plan API on `8001`
-   - GlucoSense API + portal on `8000` and `5173`
-   - Meal Plan UI on `5175`
+4. **Three new windows** open (Meal API, GlucoSense, Meal Vite). Wait until each shows “Uvicorn running” or “VITE … ready”.
 
-4. Open the portal at:
+5. **Open the portal** in your browser: **http://localhost:5173**  
+   If the GlucoSense window says port **5174** is in use, open **http://localhost:5174** instead.
 
-   ```text
-   http://localhost:5173
+6. **Confirm `.env`** in `Clinical-Insulin-Recommendation\frontend\` contains:
+
+   ```env
+   VITE_MEAL_PLAN_URL=http://localhost:5175
+   VITE_MEAL_PLAN_API_URL=http://127.0.0.1:8001
    ```
+
+   If you change these, **restart** `npm run start` for GlucoSense so Vite reloads env vars.
 
 ---
 
-## Manual startup (three terminals)
+### Option B — Three terminals (manual)
 
-### Terminal 1 — Meal Plan API
+Use **three** terminals. Order: start **Meal API** first, then **GlucoSense**, then **Meal Vite**.
+
+**Terminal 1 — Meal Plan API (port 8001)**
 
 ```powershell
 Set-Location -LiteralPath "e:\Glucosense app\Meal-Plan-System\backend"
@@ -104,35 +51,64 @@ $env:PORT = "8001"
 python run.py
 ```
 
-### Terminal 2 — GlucoSense API + portal
+Wait for: `Uvicorn running on http://0.0.0.0:8001`
+
+**Terminal 2 — GlucoSense API + portal**
 
 ```powershell
-Set-Location -LiteralPath "e:\Glucosense app\Clinical-Insulin-Recommendation\frontend"
+Set-Location -LiteralPath "e:\final year3;2 project\Clinical-Insulin-Recommendation\frontend"
 npm run start
 ```
 
-### Terminal 3 — Meal Plan frontend
+Wait for: `Uvicorn running` on **8000** and VITE on **5173** (or another port if 5173 is busy — read the terminal line `Local: http://localhost:…`).
+
+**Terminal 3 — Meal Plan frontend (port 5175, starts after Meal API readiness)**
 
 ```powershell
 Set-Location -LiteralPath "e:\Glucosense app\Meal-Plan-System\frontend"
+$env:MEAL_PLAN_API_PORT = "8001"
 $env:MEAL_PLAN_API_PROXY = "http://127.0.0.1:8001"
-node ./node_modules/vite/bin/vite.js --port 5175 --strictPort
+npm run dev:ready
 ```
 
 ---
 
-## Port map
+### Quick health checks
 
-| Component | Port |
-|-----------|------|
-| Clinical API | `8000` |
-| Clinical frontend | `5173` |
-| Meal API | `8001` |
-| Meal frontend | `5175` |
+| Check | What you should see |
+|--------|---------------------|
+| Meal API | Open **http://127.0.0.1:8001/health/ready** → JSON with `"status":"ready"` |
+| GlucoSense API | Open **http://127.0.0.1:8000/api/health/ready** → JSON with `"status":"ready"` |
+| Meal UI + proxy | Open **http://localhost:5175/api/health** → same meal-plan JSON as direct 8001 |
 
 ---
 
-## First-time setup
+### URLs cheat sheet
+
+| What | URL |
+|------|-----|
+| **Main app (open this)** | http://localhost:5173 (or 5174 if Vite printed that) |
+| Meal Plan UI (standalone) | http://localhost:5175 |
+| GlucoSense API docs | http://127.0.0.1:8000/docs |
+| Meal Plan API docs | http://127.0.0.1:8001/docs |
+
+---
+
+## Clinical API — train the insulin model (once per machine)
+
+If the GlucoSense API logs **“No saved model found at outputs\best_model\inference_bundle.joblib”**, train and save the bundle from **`Clinical-Insulin-Recommendation`** (repo root for that app):
+
+```powershell
+Set-Location -LiteralPath ".\Clinical-Insulin-Recommendation"
+python -m pip install -r requirements.txt
+python scripts/quick_train_inference_bundle.py
+```
+
+That writes `outputs/best_model/inference_bundle.joblib`. Restart the GlucoSense API (`npm run start` in `Clinical-Insulin-Recommendation\frontend`). For a full multi-model evaluation and plots, use `python run_evaluation.py` instead.
+
+---
+
+## First-time setup (once per machine)
 
 ```powershell
 Set-Location -LiteralPath ".\Clinical-Insulin-Recommendation"
@@ -141,23 +117,25 @@ python -m pip install -r requirements.txt
 Set-Location -LiteralPath "..\Meal-Plan-System\backend"
 python -m pip install -r requirements.txt
 
-Set-Location -LiteralPath "..\Clinical-Insulin-Recommendation\frontend"
+Set-Location -LiteralPath "..\..\Clinical-Insulin-Recommendation\frontend"
 npm install
 
-Set-Location -LiteralPath "..\Meal-Plan-System\frontend"
+Set-Location -LiteralPath "..\..\Meal-Plan-System\frontend"
 npm install
 ```
 
+If your path contains `;`, always use `Set-Location -LiteralPath '…'`.
+
 ---
 
-## Useful commands
+## What each piece does
 
-| Command | Location | Purpose |
-|---|---|---|
-| `npm run dev:fast` | `Clinical-Insulin-Recommendation/frontend` | Start the clinical API + frontend |
-| `npm run start` | repo root | Start integrated environment |
-| `npm run dev` | `Meal-Plan-System/frontend` | Start meal UI |
-| `python run.py` | `Meal-Plan-System/backend` | Start meal API |
+| Piece | Folder | Role |
+|-------|--------|------|
+| **GlucoSense** | `Clinical-Insulin-Recommendation/` | Landing, login, clinician workspace, patient meal shell |
+| **Meal Plan UI** | `Meal-Plan-System/frontend/` | Embedded at `/meal-plan`; dev server **5175** in integrated setup |
+| **GlucoSense API** | Started from `Clinical-Insulin-Recommendation/frontend` via `npm run start` | **:8000** — clinical CDS |
+| **Meal Plan API** | `Meal-Plan-System/backend` | **:8001** — auth, meals, SSO for embed |
 
 ---
 
@@ -165,56 +143,74 @@ npm install
 
 | File | Purpose |
 |------|---------|
-| `Clinical-Insulin-Recommendation/frontend/.env` | `VITE_MEAL_PLAN_URL` and `VITE_MEAL_PLAN_API_URL` |
-| `Clinical-Insulin-Recommendation/frontend/.env.example` | Template for frontend env settings |
+| `Clinical-Insulin-Recommendation/frontend/.env` | `VITE_MEAL_PLAN_URL` (iframe) and `VITE_MEAL_PLAN_API_URL` (SSO → **8001**) |
+| `Clinical-Insulin-Recommendation/frontend/.env.example` | Template |
 
 ---
 
-## Docker deployment
+## Docker deployment (production-like)
 
-- Use `docker-compose.yml` and copy `.env.deploy.example` to `.env.deploy`
-- Run:
+Run the **same integrated system** as containers on **8080** (GlucoSense), **8081** (Meal API), **8082** (Meal UI + nginx → API).
 
-```powershell
-docker compose --env-file .env.deploy up --build
-```
+1. Copy `.env.deploy.example` to `.env.deploy` and set secrets for real deployments.
+2. From the project root:
 
-- Open:
+   ```powershell
+   docker compose --env-file .env.deploy up --build
+   ```
 
-```text
-http://localhost:8080
-```
+3. Open **http://localhost:8080**.
 
-For full details, see `DEPLOY.md`.
+Full checklist, HTTPS, and secrets: **[DEPLOYMENT.md](./DEPLOYMENT.md)**.  
+In **VS Code / Cursor**: **Terminal → Run Task → “Docker Compose: up (integrated)”** (requires `.env.deploy`).
 
 ---
 
-## Architecture & docs
+## Documentation
 
-| File | Description |
-|------|-------------|
-| `ARCHITECTURE.md` | System architecture and integration design |
-| `SYSTEM_PIPELINE.md` | Data pipeline, ML artifacts, training flow |
-| `DEPLOY.md` | Deployment and Docker setup |
-| `FRONTEND_BACKEND_AUDIT.md` | Frontend/backend audit notes |
-| `Clinical-Insulin-Recommendation/docs/README.md` | Clinical app documentation index |
-| `Meal-Plan-System/docs/README.md` | Meal plan documentation index |
+| Doc | Purpose |
+|-----|---------|
+| **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Components, ports, GlucoSense + Meal integration |
+| **[SYSTEM_PIPELINE.md](./SYSTEM_PIPELINE.md)** | Full **application + ML pipeline** (runtime sequences, offline training, data paths) |
+| **[DEPLOYMENT.md](./DEPLOYMENT.md)** | Docker Compose, HTTPS, secrets |
+
+---
+
+## Repo layout
+
+```
+Final-Year-Full-Project/   (your workspace root)
+├── README.md
+├── ARCHITECTURE.md
+├── SYSTEM_PIPELINE.md
+├── DEPLOYMENT.md
+├── docker-compose.yml
+├── .env.deploy.example
+├── scripts/
+│   └── start-integrated.ps1     ← starts all three stacks
+├── Clinical-Insulin-Recommendation/
+│   ├── frontend/                ← npm run start (API :8000 + Vite)
+│   ├── backend/
+│   ├── data/                    ← SmartSensor_DiabetesMonitoring.csv (default)
+│   └── scripts/
+│       └── run_smart_sensor_ml.py
+└── Meal-Plan-System/
+    ├── backend/                 ← PORT=8001 python run.py
+    └── frontend/                ← Meal Vite (5175 integrated)
+```
+
+---
+
+## Sign-in behavior (demo)
+
+- **Clinician** → **/workspace** + Meal plan in sidebar.
+- **Patient** → **/meal-plan** only.
 
 ---
 
 ## Troubleshooting
 
-- If the integrated script hangs on TCP checks, start the components manually.
-- If the meal app fails to authenticate, verify `VITE_MEAL_PLAN_API_URL` points to `http://127.0.0.1:8001`.
-- If ports are busy, stop existing dev servers before restarting.
-- If Vite runs out of memory, start the backend and frontend separately.
-
----
-
-## Authors
-
-- Abaho Joy
-- Wangolo Bachawa
-- Mucunguzi Godfrey
-
-
+- **`Get-NetTCPConnection` hangs** in the script — use **Option B** (three terminals) instead.
+- **Blank meal plan / 500 on `/api/auth/...`** — Meal API must be on **8001**; GlucoSense `.env` must have `VITE_MEAL_PLAN_API_URL=http://127.0.0.1:8001`; Meal Vite must use `MEAL_PLAN_API_PROXY=http://127.0.0.1:8001` (or rely on `vite.config.js` default **8001**).
+- **Port already in use** — Close old dev servers or add **5175** to the ports the script clears; avoid running two Meal Vite servers.
+- **Node out of memory** — Run `npm run dev:api` and `npm run dev` in separate terminals under GlucoSense `frontend` instead of `npm run start`; keep Meal API + Meal Vite running as above.

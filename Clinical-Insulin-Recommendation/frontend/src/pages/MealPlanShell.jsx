@@ -1,9 +1,10 @@
-import { useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { FiActivity, FiLogOut } from 'react-icons/fi'
+import { useRef, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { FiLogOut } from 'react-icons/fi'
 import { useClinical } from '../context/ClinicalContext'
 import { useMealPlanSsoBridge } from '../components/MealPlanSsoBridge'
-import { WORKSPACE_PATH, getMealPlanAppUrl } from '../constants'
+import BrandLogo from '../components/BrandLogo'
+import { WORKSPACE_PATH, getMealPlanAppUrl, getPublicSiteHostname } from '../constants'
 
 /**
  * Embedded Glocusense Meal Plan (separate Vite app).
@@ -11,18 +12,21 @@ import { WORKSPACE_PATH, getMealPlanAppUrl } from '../constants'
  */
 export default function MealPlanShell() {
   const { userRole, setSignedIn, userProfile } = useClinical()
+  const navigate = useNavigate()
   const iframeRef = useRef(null)
-  const { onIframeLoad } = useMealPlanSsoBridge(iframeRef)
-  const iframeSrc = getMealPlanAppUrl({ embed: true })
+  const { onIframeLoad, ssoError, dismissSsoError } = useMealPlanSsoBridge(iframeRef)
+  const iframeSrc = useMemo(() => getMealPlanAppUrl({ embed: true }), [])
 
   return (
     <div className="meal-plan-shell">
       <header className="meal-plan-shell-header">
         <div className="meal-plan-shell-brand">
-          <FiActivity size={22} aria-hidden />
+          <span className="meal-plan-shell-logo" aria-hidden>
+            <BrandLogo size={36} />
+          </span>
           <div>
             <span className="meal-plan-shell-title">GlucoSense</span>
-            <span className="meal-plan-shell-sub">Meal plan & nutrition</span>
+            <span className="meal-plan-shell-sub">{getPublicSiteHostname()} · Meal plan & nutrition</span>
           </div>
         </div>
         <div className="meal-plan-shell-actions">
@@ -39,14 +43,27 @@ export default function MealPlanShell() {
             className="meal-plan-shell-logout"
             onClick={() => {
               setSignedIn(false)
-              window.location.href = '/'
+              navigate(WORKSPACE_PATH)
             }}
           >
             <FiLogOut size={18} aria-hidden />
-            Sign out
+            Disconnect Meal Plan link
           </button>
         </div>
       </header>
+      {ssoError && (
+        <div className="alert alert-warning meal-plan-sso-banner meal-plan-sso-banner--shell" role="alert">
+          <div className="meal-plan-sso-banner__row">
+            <div>
+              <strong>Connection issue</strong>
+              <p className="meal-plan-sso-banner__msg">{ssoError}</p>
+            </div>
+            <button type="button" className="meal-plan-sso-banner__dismiss" onClick={dismissSsoError} aria-label="Dismiss">
+              ×
+            </button>
+          </div>
+        </div>
+      )}
       <div className="meal-plan-shell-frame-wrap">
         <iframe
           ref={iframeRef}
@@ -58,10 +75,9 @@ export default function MealPlanShell() {
         />
       </div>
       <p className="meal-plan-shell-note">
-        If this area is blank, start the Meal Plan API on port <strong>8001</strong> and the Meal Plan Vite app
-        (integrated setup uses <strong>5175</strong>). Set <code>VITE_MEAL_PLAN_URL</code> in GlucoSense if the
-        iframe origin differs. In dev, SSO calls <code>/api/auth</code> through the GlucoSense Vite proxy
-        (no direct browser access to :8001).
+        If this area is blank, start the Meal Plan API on port <strong>8001</strong> and its Vite app (integrated
+        setup uses <strong>5175</strong>), and set <code>VITE_MEAL_PLAN_URL</code> /{' '}
+        <code>VITE_MEAL_PLAN_API_URL</code> in GlucoSense if your ports differ.
       </p>
     </div>
   )

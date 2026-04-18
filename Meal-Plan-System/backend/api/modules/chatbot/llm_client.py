@@ -39,7 +39,7 @@ def _openai_chat(messages: List[dict]) -> str:
         "temperature": 0.35,
         "max_tokens": 600,
     }
-    with httpx.Client(timeout=120.0) as client:
+    with httpx.Client(timeout=config.LLM_REQUEST_TIMEOUT_SECONDS) as client:
         r = client.post(url, headers=headers, json=body)
         r.raise_for_status()
         data = r.json()
@@ -55,7 +55,7 @@ def _ollama_chat(messages: List[dict]) -> str:
         "stream": False,
         "options": {"temperature": 0.35, "num_predict": 600},
     }
-    with httpx.Client(timeout=120.0) as client:
+    with httpx.Client(timeout=config.LLM_REQUEST_TIMEOUT_SECONDS) as client:
         r = client.post(url, json=body)
         r.raise_for_status()
         data = r.json()

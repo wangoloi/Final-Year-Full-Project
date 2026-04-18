@@ -1,20 +1,18 @@
 """
 Patient registration and retrieval.
-Supports soft-delete (archive), restore, and permanent purge.
+Stores patient demographics for assessment linkage.
 """
 from __future__ import annotations
 
 import logging
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .db import get_db_path, init_db, set_setting
+from .db import get_db_path, init_db
 
 logger = logging.getLogger(__name__)
-
-# Used with app_settings so we never re-insert "Sample Patient" after the user removes it.
-SAMPLE_PATIENT_SEED_FLAG = "sample_patient_seed_done"
 
 
 def _ensure_patients_table(db_path: Optional[Path] = None) -> None:
@@ -35,10 +33,6 @@ def _ensure_patients_table(db_path: Optional[Path] = None) -> None:
                 updated_at TEXT NOT NULL
             )
         """)
-        try:
-            conn.execute("ALTER TABLE patients ADD COLUMN deleted_at TEXT NULL")
-        except Exception:
-            pass
         # Add patient_id to records if missing
         try:
             conn.execute("ALTER TABLE records ADD COLUMN patient_id INTEGER REFERENCES patients(id)")
@@ -60,22 +54,21 @@ def _ensure_patients_table(db_path: Optional[Path] = None) -> None:
             conn.execute("ALTER TABLE clinician_feedback ADD COLUMN patient_id INTEGER REFERENCES patients(id)")
         except Exception:
             pass
+        try:
+            conn.execute("ALTER TABLE patients ADD COLUMN deleted_at TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE patients ADD COLUMN mrn_backup TEXT")
+        except Exception:
+            pass
         conn.commit()
     finally:
         conn.close()
 
 
-def _row_to_dict(r: Any) -> Dict[str, Any]:
-    d = dict(r)
-    if d.get("deleted_at"):
-        d["archived"] = True
-    else:
-        d["archived"] = False
-    return d
-
-
 def list_patients(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Return active (non-archived) patients ordered by name."""
+    """Return all active (non-removed) patients ordered by name."""
     _ensure_patients_table(db_path)
     path = get_db_path(db_path)
     if not path.exists():
@@ -85,16 +78,16 @@ def list_patients(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.execute(
-            "SELECT id, medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at, deleted_at "
+            "SELECT id, medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at "
             "FROM patients WHERE deleted_at IS NULL ORDER BY name ASC"
         )
-        return [_row_to_dict(r) for r in cur.fetchall()]
+        return [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
 
 
-def list_archived_patients(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Return archived patients (most recently archived first)."""
+def list_removed_patients(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Return patients removed from the register (soft-deleted), newest removal first."""
     _ensure_patients_table(db_path)
     path = get_db_path(db_path)
     if not path.exists():
@@ -104,21 +97,16 @@ def list_archived_patients(db_path: Optional[Path] = None) -> List[Dict[str, Any
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.execute(
-            "SELECT id, medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at, deleted_at "
+            "SELECT id, medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at, deleted_at, mrn_backup "
             "FROM patients WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
         )
-        return [_row_to_dict(r) for r in cur.fetchall()]
+        return [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
 
 
-def get_patient(
-    patient_id: int,
-    db_path: Optional[Path] = None,
-    *,
-    allow_archived: bool = False,
-) -> Optional[Dict[str, Any]]:
-    """Return a patient by id. Default: active patients only."""
+def get_patient(patient_id: int, db_path: Optional[Path] = None, include_deleted: bool = False) -> Optional[Dict[str, Any]]:
+    """Return a single patient by id. By default only active patients; include_deleted=True for restore flows."""
     _ensure_patients_table(db_path)
     path = get_db_path(db_path)
     if not path.exists():
@@ -127,20 +115,20 @@ def get_patient(
     conn = sqlite3.connect(str(path))
     try:
         conn.row_factory = sqlite3.Row
-        if allow_archived:
+        if include_deleted:
             cur = conn.execute(
-                "SELECT id, medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at, deleted_at "
+                "SELECT id, medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at, deleted_at, mrn_backup "
                 "FROM patients WHERE id = ?",
                 (patient_id,),
             )
         else:
             cur = conn.execute(
-                "SELECT id, medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at, deleted_at "
+                "SELECT id, medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at, deleted_at, mrn_backup "
                 "FROM patients WHERE id = ? AND deleted_at IS NULL",
                 (patient_id,),
             )
         row = cur.fetchone()
-        return _row_to_dict(row) if row else None
+        return dict(row) if row else None
     finally:
         conn.close()
 
@@ -162,8 +150,8 @@ def create_patient(
     conn = sqlite3.connect(str(path))
     try:
         cur = conn.execute(
-            """INSERT INTO patients (medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at, deleted_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, NULL)""",
+            """INSERT INTO patients (medical_record_number, name, date_of_birth, gender, condition, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             ((medical_record_number or "").strip() or None, name.strip(), date_of_birth, gender, condition, now, now),
         )
         conn.commit()
@@ -181,7 +169,7 @@ def update_patient(
     medical_record_number: Optional[str] = None,
     db_path: Optional[Path] = None,
 ) -> bool:
-    """Update an active patient. Returns True if updated."""
+    """Update a patient. Returns True if updated."""
     _ensure_patients_table(db_path)
     path = get_db_path(db_path)
     if not path.exists():
@@ -207,7 +195,7 @@ def update_patient(
         }
         conn.execute(
             """UPDATE patients SET name=?, condition=?, date_of_birth=?, gender=?, medical_record_number=?, updated_at=?
-               WHERE id=? AND deleted_at IS NULL""",
+               WHERE id=?""",
             (updates["name"], updates["condition"], updates["date_of_birth"], updates["gender"], updates["medical_record_number"] or None, now, patient_id),
         )
         conn.commit()
@@ -217,130 +205,80 @@ def update_patient(
 
 
 def patient_exists(patient_id: int, db_path: Optional[Path] = None) -> bool:
-    """True if patient exists and is active (not archived). Used for assessments."""
-    _ensure_patients_table(db_path)
-    path = get_db_path(db_path)
-    if not path.exists():
-        return False
-    import sqlite3
-    conn = sqlite3.connect(str(path))
-    try:
-        cur = conn.execute(
-            "SELECT 1 FROM patients WHERE id = ? AND deleted_at IS NULL",
-            (patient_id,),
-        )
-        return cur.fetchone() is not None
-    finally:
-        conn.close()
+    """Check if an active (non-removed) patient exists."""
+    return get_patient(patient_id, db_path, include_deleted=False) is not None
 
 
-def archive_patient(patient_id: int, db_path: Optional[Path] = None) -> bool:
-    """Soft-delete (archive). Linked assessment rows are kept for restore. Returns True if archived."""
+def delete_patient(patient_id: int, db_path: Optional[Path] = None) -> bool:
+    """Soft-remove a patient from the register; monitoring data is kept for retrieval."""
+    from .db import get_db_path, _conn_for_file
+
     _ensure_patients_table(db_path)
-    path = get_db_path(db_path)
-    if not path.exists():
+    if not patient_exists(patient_id, db_path):
         return False
-    import sqlite3
+    path = get_db_path(db_path)
     now = datetime.now(timezone.utc).isoformat()
-    conn = sqlite3.connect(str(path))
+    conn = _conn_for_file(path)
     try:
-        cur = conn.execute(
-            "UPDATE patients SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-            (now, now, patient_id),
-        )
-        conn.commit()
-        if cur.rowcount == 0:
+        cur = conn.execute("SELECT medical_record_number FROM patients WHERE id = ? AND deleted_at IS NULL", (patient_id,))
+        row = cur.fetchone()
+        if not row:
             return False
-        try:
-            set_setting(SAMPLE_PATIENT_SEED_FLAG, "1", db_path)
-        except Exception:
-            pass
-        return True
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-
-def restore_patient(patient_id: int, db_path: Optional[Path] = None) -> bool:
-    """Un-archive a patient. Returns True if restored."""
-    _ensure_patients_table(db_path)
-    path = get_db_path(db_path)
-    if not path.exists():
-        return False
-    import sqlite3
-    now = datetime.now(timezone.utc).isoformat()
-    conn = sqlite3.connect(str(path))
-    try:
+        mrn = row[0]
         cur = conn.execute(
-            "UPDATE patients SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL",
-            (now, patient_id),
+            """UPDATE patients SET deleted_at = ?, updated_at = ?, mrn_backup = ?, medical_record_number = NULL
+               WHERE id = ? AND deleted_at IS NULL""",
+            (now, now, mrn, patient_id),
         )
         conn.commit()
         return cur.rowcount > 0
-    except Exception:
-        conn.rollback()
-        raise
     finally:
         conn.close()
 
 
-def purge_patient(patient_id: int, db_path: Optional[Path] = None) -> bool:
-    """Permanently delete patient row and linked assessment data. Returns True if removed."""
+def restore_patient(patient_id: int, db_path: Optional[Path] = None) -> tuple[bool, Optional[str]]:
+    """
+    Put a soft-deleted patient back on the active list. Restores MRN from mrn_backup when present.
+    Returns (True, None) on success, (False, error_code) on failure.
+    """
+    from .db import _conn_for_file
+
     _ensure_patients_table(db_path)
     path = get_db_path(db_path)
-    if not path.exists():
-        return False
-    import sqlite3
+    row = get_patient(patient_id, db_path, include_deleted=True)
+    if not row:
+        return False, "not_found"
+    # Only active patients have deleted_at NULL; use `is None` so edge cases like '' do not look "active".
+    if row.get("deleted_at") is None:
+        return False, "not_removed"
 
-    conn = sqlite3.connect(str(path))
+    mrn = row.get("mrn_backup")
+    now = datetime.now(timezone.utc).isoformat()
+    conn = _conn_for_file(path)
     try:
-        cur = conn.execute("SELECT 1 FROM patients WHERE id = ?", (patient_id,))
-        if cur.fetchone() is None:
-            return False
-
-        try:
-            conn.execute(
-                "DELETE FROM clinician_feedback WHERE record_id IN (SELECT id FROM records WHERE patient_id = ?)",
-                (patient_id,),
-            )
-        except Exception:
-            pass
-        for sql in (
-            "DELETE FROM smart_sensor_predictions WHERE patient_id = ?",
-            "DELETE FROM records WHERE patient_id = ?",
-            "DELETE FROM glucose_readings WHERE patient_id = ?",
-            "DELETE FROM dose_events WHERE patient_id = ?",
-        ):
-            try:
-                conn.execute(sql, (patient_id,))
-            except Exception as ex:
-                logger.warning("purge_patient: %s skipped: %s", sql.split()[2], ex)
-        for sql in (
-            "DELETE FROM alerts WHERE patient_id = ?",
-            "DELETE FROM clinician_feedback WHERE patient_id = ?",
-        ):
-            try:
-                conn.execute(sql, (patient_id,))
-            except Exception as ex:
-                logger.warning("purge_patient: optional delete skipped: %s", ex)
-
-        conn.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
+        cur = conn.execute(
+            """UPDATE patients SET deleted_at = NULL, updated_at = ?, medical_record_number = COALESCE(?, medical_record_number),
+               mrn_backup = NULL WHERE id = ? AND deleted_at IS NOT NULL""",
+            (now, mrn, patient_id),
+        )
         conn.commit()
-        try:
-            set_setting(SAMPLE_PATIENT_SEED_FLAG, "1", db_path)
-        except Exception:
-            pass
-        return True
-    except Exception:
+        if cur.rowcount > 0:
+            return True, None
+        return False, "restore_failed"
+    except sqlite3.IntegrityError:
         conn.rollback()
-        raise
+        # Another active patient may already use this MRN — restore without reassigning MRN; keep mrn_backup for staff to copy.
+        try:
+            cur = conn.execute(
+                """UPDATE patients SET deleted_at = NULL, updated_at = ?, medical_record_number = NULL,
+                   mrn_backup = ? WHERE id = ? AND deleted_at IS NOT NULL""",
+                (now, mrn, patient_id),
+            )
+            conn.commit()
+            if cur.rowcount > 0:
+                return True, "mrn_skipped_conflict"
+        except sqlite3.IntegrityError:
+            pass
+        return False, "mrn_conflict"
     finally:
         conn.close()
-
-
-# Backwards compatibility: callers expecting hard delete should use purge_patient
-def delete_patient(patient_id: int, db_path: Optional[Path] = None) -> bool:
-    """Alias for archive_patient (soft delete)."""
-    return archive_patient(patient_id, db_path)

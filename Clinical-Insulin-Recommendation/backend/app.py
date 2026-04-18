@@ -1,27 +1,28 @@
 """
-GlucoSense Clinical Support — FastAPI backend for the React (Vite) portal.
+GlucoSense Clinical Support - FastAPI backend (web API for the React app).
 
-What lives where:
-  backend/app.py     — This app: CORS, lifespan (DB seed + optional model preload), /api routes.
-  backend/src/insulin_system — REST handlers, inference engine, SQLite storage, safety/audit.
-  backend/src/clinical_insulin_pipeline — Shared inference + offline training (dose regression).
-  frontend/          — Clinician UI; in dev Vite proxies /api → this server (default :8000).
-  data/, outputs/, config/ — Repo root: training CSV, model bundles, clinical JSON.
+Repository layout:
+  backend/app.py   ← this file (run via uvicorn)
+  backend/src/     ← insulin_system, clinical_ml_pipeline
+  frontend/        ← React (Vite)
+  data/, outputs/, config/  ← repo root
 
-Run: uvicorn app:app --reload --port 8000 (from repo root via root app.py shim) or backend.app:app.
+Run from repo root:
+  uvicorn app:app --reload --port 8000        # uses root app.py shim
+  uvicorn backend.app:app --reload --port 8000
 
-Optional: GLUCOSENSE_API_KEY — require X-API-Key on requests.
+Optional: GLUCOSENSE_API_KEY enables API key auth (X-API-Key header).
 """
 from __future__ import annotations
 
 import logging
 import os
 import sys
-import threading
 import warnings
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# Suppress sklearn version mismatch warnings when loading saved models
 warnings.filterwarnings("ignore", message=".*Trying to unpickle.*", category=UserWarning)
 
 _log = logging.getLogger("glucosense")
@@ -38,38 +39,73 @@ _storage_db.set_project_root(ROOT)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.requests import Request
 
-_LAZY_ROUTES = os.environ.get("GLUCOSENSE_LAZY_ROUTES", "1").strip().lower() not in ("0", "false", "no")
-_routes_loaded = False
-_routes_lock = threading.Lock()
+from insulin_system.api.routes import router as api_router
+from insulin_system.api.clinical_auth import clinical_auth_middleware
+from insulin_system.api.readiness import reset_readiness, update_readiness
 
 API_KEY = os.environ.get("GLUCOSENSE_API_KEY")
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    """DB seed + optional background bundle preload."""
-    _log.info("GlucoSense starting.")
+    """DB seed + synchronous model readiness warmup."""
+    reset_readiness()
+    _log.info("GlucoSense starting. Waiting for runtime model readiness before reporting ready.")
     try:
         from insulin_system.storage import init_db, run_seed_if_needed
 
         init_db()
         run_seed_if_needed()
+        update_readiness(database={"status": "ready"})
     except Exception as e:
+        update_readiness(
+            status="degraded",
+            database={"status": "error", "detail": str(e)},
+            runtime={"status": "pending"},
+        )
         _log.warning("Startup DB init/seed failed (API will retry on demand): %s", e)
 
-    def _preload():
-        try:
-            from insulin_system.api.engine import get_bundle
+    runtime_detail = {
+        "active_pipeline": "legacy",
+        "legacy_bundle": {"status": "pending"},
+        "smart_sensor_bundle": {"status": "not_configured"},
+    }
+    try:
+        from insulin_system.api.engine import get_bundle
+        from insulin_system.api.smart_sensor_engine import (
+            load_smart_sensor_bundle,
+            smart_sensor_bundle_available,
+        )
 
-            get_bundle()
-            _log.info("Inference bundle preloaded.")
-        except Exception as e:
-            _log.warning("Inference bundle not loaded (expected until a model is wired): %s", e)
+        if smart_sensor_bundle_available():
+            runtime_detail["active_pipeline"] = "smart_sensor"
+            runtime_detail["smart_sensor_bundle"] = {"status": "loading"}
+            load_smart_sensor_bundle()
+            runtime_detail["smart_sensor_bundle"] = {"status": "ready"}
 
-    threading.Thread(target=_preload, daemon=True).start()
+        runtime_detail["legacy_bundle"] = {"status": "loading"}
+        get_bundle()
+        runtime_detail["legacy_bundle"] = {"status": "ready"}
+        update_readiness(status="ready", runtime={"status": "ready"}, details=runtime_detail)
+        _log.info(
+            "Runtime ready. active_pipeline=%s legacy_bundle=%s smart_sensor_bundle=%s",
+            runtime_detail["active_pipeline"],
+            runtime_detail["legacy_bundle"]["status"],
+            runtime_detail["smart_sensor_bundle"]["status"],
+        )
+    except Exception as e:
+        runtime_detail.setdefault("error", str(e))
+        if runtime_detail["legacy_bundle"]["status"] == "loading":
+            runtime_detail["legacy_bundle"] = {"status": "error", "detail": str(e)}
+        if runtime_detail["smart_sensor_bundle"]["status"] == "loading":
+            runtime_detail["smart_sensor_bundle"] = {"status": "error", "detail": str(e)}
+        update_readiness(status="degraded", runtime={"status": "error", "detail": str(e)}, details=runtime_detail)
+        _log.warning("Runtime preload failed. Readiness will stay degraded until fixed: %s", e)
+
     yield
+
+    update_readiness(status="stopped")
 
 
 app = FastAPI(
@@ -82,10 +118,31 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+# HTTP auth runs inside CORS: register CORS last so it is outermost (handles OPTIONS + response headers).
+app.middleware("http")(clinical_auth_middleware)
+
+# CORS: set CORS_ALLOW_ORIGINS to comma-separated list (e.g. https://your-app.netlify.app)
+_default_cors = ",".join(
+    [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:8082",
+        "http://127.0.0.1:8082",
+    ]
+)
+_cors_raw = os.environ.get("CORS_ALLOW_ORIGINS", _default_cors).strip()
+_cors_list = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=_cors_list if _cors_list else [o.strip() for o in _default_cors.split(",")],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_credentials=bool(os.environ.get("CORS_ALLOW_CREDENTIALS", "").lower() in ("1", "true", "yes")),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -102,39 +159,10 @@ except ImportError:
     limiter = None
 
 
-# Liveness must not depend on the heavy routes module or SPA static mount (Vite + ApiGate poll this).
-@app.get("/api/health/live", tags=["health"])
-def api_health_live():
-    return {"status": "ok", "live": True}
+app.include_router(api_router)
 
-
-def _include_heavy_routes() -> None:
-    """Import API routes once. Call from eager path or first request when lazy."""
-    global _routes_loaded
-    with _routes_lock:
-        if _routes_loaded:
-            return
-        from insulin_system.api.routes import router as api_router  # noqa: E402
-
-        app.include_router(api_router)
-        _routes_loaded = True
-
-
-if not _LAZY_ROUTES:
-    _include_heavy_routes()
-else:
-
-    @app.middleware("http")
-    async def _lazy_load_routes(request: Request, call_next):
-        # Defer importing routes until first request so uvicorn binds quickly (Windows ML stack can be very slow to import).
-        _include_heavy_routes()
-        return await call_next(request)
-
-# Serving frontend/dist at "/" breaks /api when the mount wins route matching (common after `npm run build`).
-# Docker sets GLUCOSENSE_SERVE_SPA=1; local dev defaults off so Vite proxy always hits the API.
 frontend_dist = ROOT / "frontend" / "dist"
-_serve_spa = os.environ.get("GLUCOSENSE_SERVE_SPA", "0").strip().lower() in ("1", "true", "yes")
-if frontend_dist.exists() and _serve_spa:
+if frontend_dist.exists():
     static = StaticFiles(directory=str(frontend_dist), html=True)
     app.mount("/", static, name="frontend")
 else:

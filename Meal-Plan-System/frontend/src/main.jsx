@@ -1,12 +1,9 @@
-/**
- * Glocusense SPA entry: BrowserRouter only; AuthProvider wraps routes inside App.jsx.
- * /api is proxied to the FastAPI backend (default :8001) — see vite.config.js.
- */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import App from './App';
-import './styles/index.css';
+import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

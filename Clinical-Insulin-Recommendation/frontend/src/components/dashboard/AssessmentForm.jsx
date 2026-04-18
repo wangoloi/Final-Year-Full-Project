@@ -3,12 +3,10 @@
  * Single responsibility: render form fields and validation errors.
  */
 import {
-  AGE_MIN, AGE_MAX, GENDER_OPTIONS, FOOD_INTAKE_OPTIONS, PREVIOUS_MEDICATION_OPTIONS,
+  AGE_MIN, AGE_MAX, GENDER_OPTIONS,
   GLUCOSE_MIN, GLUCOSE_MAX, BMI_MIN, BMI_MAX, HBA1C_MIN, HBA1C_MAX, WEIGHT_MIN, WEIGHT_MAX,
-  IOB_MAX_UNITS, ANTICIPATED_CARBS_MAX_G, GLUCOSE_TREND_OPTIONS,
   MEAL_CONTEXT_OPTIONS, ACTIVITY_CONTEXT_OPTIONS,
 } from '../../constants'
-import { MEDICATION_NAME_MAX_LENGTH } from '../../constants'
 import { NUMERIC_FIELDS } from '../../utils/assessmentFormUtils'
 
 export default function AssessmentForm({
@@ -16,6 +14,7 @@ export default function AssessmentForm({
   fieldErrors,
   quickEntryMode,
   recentMetrics,
+  patientRecentActivity,
   loading,
   onChange,
   onQuickEntryChange,
@@ -65,14 +64,9 @@ export default function AssessmentForm({
           <>
             <FormFieldAge form={form} fieldErrors={fieldErrors} onChange={handleChange} />
             <FormFieldGender form={form} fieldErrors={fieldErrors} onChange={handleChange} />
-            <FormFieldFoodIntake form={form} fieldErrors={fieldErrors} onChange={handleChange} />
-            <FormFieldPreviousMedications form={form} fieldErrors={fieldErrors} onChange={handleChange} />
           </>
         )}
         <FormFieldGlucose form={form} fieldErrors={fieldErrors} quickEntryMode={quickEntryMode} recentMetrics={recentMetrics} onChange={handleChange} />
-        {!quickEntryMode && form.previous_medications === 'Oral' && (
-          <FormFieldMedicationName form={form} fieldErrors={fieldErrors} onChange={handleChange} />
-        )}
         {!quickEntryMode && NUMERIC_FIELDS.filter((f) => f.key !== 'glucose_level').map(({ key, label }) => (
           <FormFieldNumeric
             key={key}
@@ -85,12 +79,62 @@ export default function AssessmentForm({
             onChange={handleChange}
           />
         ))}
-        <DosingContextFields form={form} fieldErrors={fieldErrors} quickEntryMode={quickEntryMode} onChange={handleChange} />
+        <RecentPatientActivityPanel recent={patientRecentActivity} />
       </div>
 
       <button type="button" className="btn btn-primary" onClick={onSubmit} disabled={loading}>
         {loading ? 'Getting recommendation…' : 'Get recommendation'}
       </button>
+    </div>
+  )
+}
+
+function formatTs(ts) {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return String(ts)
+  return d.toLocaleString()
+}
+
+function RecentPatientActivityPanel({ recent }) {
+  const lastGlucose = recent?.last_glucose
+  const lastDose = recent?.last_dose
+  const lastRec = recent?.last_recommendation
+  const lastRecSummary = lastRec?.recommendation_summary || lastRec?.recommended_action || ''
+  const lastRecSaysNoInsulin = String(lastRec?.dosage_action || '').toLowerCase() === 'none'
+  return (
+    <div className="form-field form-field-full" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+      <span className="form-label" style={{ fontWeight: 600 }}>Recent patient activity</span>
+      <p className="form-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+        Shows the most recent glucose reading and recorded insulin injection for the selected patient.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+        <div style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Last glucose</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem' }}>
+            {lastGlucose?.value != null ? `${lastGlucose.value} mg/dL` : '—'}
+          </div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            {formatTs(lastGlucose?.reading_at)}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Last insulin dose injected</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem' }}>
+            {lastRecSaysNoInsulin
+              ? 'No insulin used'
+              : (lastDose?.total_dose != null && String(lastDose.total_dose).trim() ? String(lastDose.total_dose) : '—')}
+          </div>
+          {lastRecSaysNoInsulin && lastRecSummary && (
+            <div style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Advice:</span> {lastRecSummary}
+            </div>
+          )}
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            {lastRecSaysNoInsulin ? formatTs(lastRec?.created_at) : formatTs(lastDose?.created_at)}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -102,7 +146,10 @@ function SmartSensorContextFields({ form, fieldErrors, onChange }) {
   return (
     <>
       <div className="form-field form-field-full" style={{ gridColumn: '1 / -1' }}>
-        <span className="form-label" style={{ fontWeight: 700 }}>Measurement context (required)</span>
+        <span className="form-label" style={{ fontWeight: 600 }}>Measurement context (required)</span>
+        <p className="form-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+          Used by the Smart Sensor model for time-aware features (sin/cos clock, meal and activity context).
+        </p>
       </div>
       <label className="form-field">
         <span className="form-label">Measurement date &amp; time *</span>
@@ -182,34 +229,6 @@ function FormFieldGender({ form, fieldErrors, onChange }) {
   )
 }
 
-function FormFieldFoodIntake({ form, fieldErrors, onChange }) {
-  const err = fieldErrors.find((e) => e.field === 'food_intake')
-  return (
-    <label className="form-field">
-      <span className="form-label">Food intake *</span>
-      <select value={form.food_intake ?? ''} onChange={(e) => onChange('food_intake', e.target.value)} className="form-input form-select" aria-invalid={!!err}>
-        <option value="">Select...</option>
-        {FOOD_INTAKE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-      </select>
-      {err && <span className="form-field-error">{err.message}</span>}
-    </label>
-  )
-}
-
-function FormFieldPreviousMedications({ form, fieldErrors, onChange }) {
-  const err = fieldErrors.find((e) => e.field === 'previous_medications')
-  return (
-    <label className="form-field">
-      <span className="form-label">Previous medication *</span>
-      <select value={form.previous_medications ?? ''} onChange={(e) => onChange('previous_medications', e.target.value)} className="form-input form-select" aria-invalid={!!err}>
-        <option value="">Select...</option>
-        {PREVIOUS_MEDICATION_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-      </select>
-      {err && <span className="form-field-error">{err.message}</span>}
-    </label>
-  )
-}
-
 function FormFieldGlucose({ form, fieldErrors, quickEntryMode, recentMetrics, onChange }) {
   const err = fieldErrors.find((e) => e.field === 'glucose_level')
   return (
@@ -230,25 +249,6 @@ function FormFieldGlucose({ form, fieldErrors, quickEntryMode, recentMetrics, on
       {quickEntryMode && recentMetrics?.glucose != null && (
         <span className="form-hint" style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>Last: {recentMetrics.glucose} mg/dL</span>
       )}
-    </label>
-  )
-}
-
-function FormFieldMedicationName({ form, fieldErrors, onChange }) {
-  const err = fieldErrors.find((e) => e.field === 'medication_name')
-  return (
-    <label className="form-field form-field-full">
-      <span className="form-label">Medication name (required for Oral) *</span>
-      <input
-        type="text"
-        value={form.medication_name ?? ''}
-        onChange={(e) => onChange('medication_name', e.target.value)}
-        placeholder="e.g. Metformin"
-        className="form-input"
-        maxLength={MEDICATION_NAME_MAX_LENGTH}
-        aria-invalid={!!err}
-      />
-      {err && <span className="form-field-error">{err.message}</span>}
     </label>
   )
 }
@@ -274,38 +274,4 @@ function FormFieldNumeric({ fieldKey, label, form, fieldErrors, min, max, onChan
   )
 }
 
-function DosingContextFields({ form, fieldErrors, quickEntryMode, onChange }) {
-  const iobErr = fieldErrors.find((e) => e.field === 'iob')
-  const carbsErr = fieldErrors.find((e) => e.field === 'anticipated_carbs')
-  const trendErr = fieldErrors.find((e) => e.field === 'glucose_trend')
-  return (
-    <>
-      <div className="form-field form-field-full" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
-        <span className="form-label" style={{ fontWeight: 700 }}>Previous readings</span>
-        {!quickEntryMode && (
-          <p className="form-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-            IOB, anticipated carbs, and glucose trend improve safety and context summary.
-          </p>
-        )}
-      </div>
-      <label className="form-field">
-        <span className="form-label">Insulin on board (IOB, units)</span>
-        <input type="number" step="0.1" min={0} max={IOB_MAX_UNITS} value={form.iob ?? ''} onChange={(e) => onChange('iob', e.target.value)} className="form-input" aria-invalid={!!iobErr} />
-        {iobErr && <span className="form-field-error">{iobErr.message}</span>}
-      </label>
-      <label className="form-field">
-        <span className="form-label">Anticipated carbs (g)</span>
-        <input type="number" step="1" min={0} max={ANTICIPATED_CARBS_MAX_G} value={form.anticipated_carbs ?? ''} onChange={(e) => onChange('anticipated_carbs', e.target.value)} className="form-input" aria-invalid={!!carbsErr} />
-        {carbsErr && <span className="form-field-error">{carbsErr.message}</span>}
-      </label>
-      <label className="form-field">
-        <span className="form-label">Glucose trend</span>
-        <select value={form.glucose_trend ?? ''} onChange={(e) => onChange('glucose_trend', e.target.value)} className="form-input form-select" aria-invalid={!!trendErr}>
-          <option value="">Select...</option>
-          {GLUCOSE_TREND_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-        {trendErr && <span className="form-field-error">{trendErr.message}</span>}
-      </label>
-    </>
-  )
-}
+// Type 1 dosing context UI removed (replaced by RecentPatientActivityPanel)

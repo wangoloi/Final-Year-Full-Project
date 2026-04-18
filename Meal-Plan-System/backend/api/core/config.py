@@ -34,8 +34,11 @@ def _db_path() -> str:
 
 DATABASE_URL = _db_path()
 JWT_SECRET = os.getenv("JWT_SECRET", os.getenv("SECRET_KEY", "dev-secret-change-in-production-32bytes-min"))
-PORT = int(os.getenv("PORT", 8000))
+# Integrated dev runs the Meal Plan API on :8001 (GlucoSense clinical API uses :8000).
+PORT = int(os.getenv("PORT", 8001))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower() or "development"
+STRICT_STARTUP_VALIDATION = os.getenv("STRICT_STARTUP_VALIDATION", "").lower() in ("1", "true", "yes")
 
 # GlucoSense portal embeds this app in an iframe and calls POST /api/auth/integration/glucosense
 # with this header value. Dev default only — set GLUCOSENSE_EMBED_KEY in production.
@@ -47,6 +50,7 @@ TYPESENSE_PORT = int(os.getenv("TYPESENSE_PORT", "8108"))
 TYPESENSE_PROTOCOL = os.getenv("TYPESENSE_PROTOCOL", "http").strip().rstrip(":")
 TYPESENSE_API_KEY = os.getenv("TYPESENSE_API_KEY", "xyz")
 TYPESENSE_FOODS_COLLECTION = os.getenv("TYPESENSE_FOODS_COLLECTION", "foods")
+TYPESENSE_CONNECTION_TIMEOUT_SECONDS = float(os.getenv("TYPESENSE_CONNECTION_TIMEOUT_SECONDS", "8"))
 
 # LLM chatbot (RAG). Set OPENAI_API_KEY and/or OLLAMA_HOST.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
@@ -54,6 +58,7 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").stri
 CHATBOT_MODEL = os.getenv("CHATBOT_MODEL", "gpt-4o-mini")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "").strip().rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+LLM_REQUEST_TIMEOUT_SECONDS = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "45"))
 
 _backend_root = Path(__file__).resolve().parents[2]
 (_backend_root / "instance").mkdir(exist_ok=True)
@@ -85,3 +90,36 @@ CLINICAL_PROMPT_SUPPLEMENT_PATH = Path(
     )
 ).resolve()
 CLINICAL_PROMPT_SUPPLEMENT_MAX_CHARS = max(500, int(os.getenv("CLINICAL_PROMPT_SUPPLEMENT_MAX_CHARS", "8000")))
+
+
+def is_production_like() -> bool:
+    return APP_ENV in {"production", "staging"}
+
+
+def runtime_validation() -> dict[str, list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    weak_jwt = JWT_SECRET == "dev-secret-change-in-production-32bytes-min" or len(JWT_SECRET) < 32
+    weak_embed = GLUCOSENSE_EMBED_KEY == "dev-embed-local-only" or len(GLUCOSENSE_EMBED_KEY) < 24
+
+    if is_production_like() and weak_jwt:
+        errors.append("JWT_SECRET must be set to a long random value in production-like environments.")
+    elif weak_jwt:
+        warnings.append("JWT_SECRET is using a development default.")
+
+    if is_production_like() and weak_embed:
+        errors.append("GLUCOSENSE_EMBED_KEY must be set to a long random value in production-like environments.")
+    elif weak_embed:
+        warnings.append("GLUCOSENSE_EMBED_KEY is using a development default.")
+
+    if TYPESENSE_HOST and TYPESENSE_API_KEY == "xyz":
+        if is_production_like():
+            errors.append("TYPESENSE_API_KEY must be changed from the demo default when Typesense is enabled.")
+        else:
+            warnings.append("Typesense is enabled with the demo API key.")
+
+    if not OPENAI_API_KEY and not OLLAMA_HOST:
+        warnings.append("Chatbot LLM provider is not configured; chatbot will stay in fallback mode.")
+
+    return {"errors": errors, "warnings": warnings}

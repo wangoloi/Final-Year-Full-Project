@@ -2,45 +2,41 @@
  * Dashboard API service.
  * Single responsibility: API calls for recommendation, dose, feedback.
  */
-import { requestJson } from './http'
+import { apiFetch } from '../api'
 
 const API = '/api'
 
 export async function fetchRecommendation(body) {
-  try {
-    const data = await requestJson(`${API}/recommend`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    return { ok: true, data, status: 200 }
-  } catch (err) {
-    return { ok: false, data: { detail: err?.message || 'Request failed' }, status: err?.status ?? 0 }
-  }
+  const res = await apiFetch(`${API}/recommend`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  return { ok: res.ok, data, status: res.status }
 }
 
 export async function recordDose(payload) {
-  try {
-    await requestJson(`${API}/dose`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    return true
-  } catch {
-    return false
-  }
+  const res = await apiFetch(`${API}/dose`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return res.ok
 }
 
 export async function submitFeedback(payload) {
-  try {
-    const data = await requestJson(`${API}/feedback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    return { ok: true, data }
-  } catch (e) {
-    return { ok: false, data: { detail: e?.message || 'Failed to submit feedback' } }
-  }
+  const res = await apiFetch(`${API}/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json().catch(() => ({}))
+  return { ok: res.ok, data }
+}
+
+export async function fetchPatientRecentActivity(patientId) {
+  const res = await apiFetch(`${API}/patients/${patientId}/recent-activity`)
+  const data = await res.json().catch(() => ({}))
+  return { ok: res.ok, data, status: res.status }
 }

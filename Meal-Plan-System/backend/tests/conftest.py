@@ -1,8 +1,6 @@
 """Pytest configuration and fixtures - FastAPI."""
 import os
 import tempfile
-from pathlib import Path
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,14 +10,9 @@ os.close(_fd)
 os.environ["DATABASE_URL"] = f"sqlite:///{_test_db_path}"
 # Keep pytest fast: skip loading sentence-transformers + topic classifier unless overridden.
 os.environ.setdefault("CHATBOT_TOPIC_NLP", "false")
+os.environ.setdefault("SKIP_RAG_BUILD", "1")
 # Deterministic chatbot assertions (rule path); unset or set false locally to exercise LLM in tests.
 os.environ.setdefault("CHATBOT_USE_LEGACY_ONLY", "true")
-
-# Absolute path before importing the app so api.core.config picks up a stable CSV location
-# (avoids flaky sensor-demo tests when the process cwd differs from the backend folder).
-_backend_dir = Path(__file__).resolve().parents[1]
-_demo_csv = _backend_dir / "datasets" / "SmartSensor_DiabetesMonitoring.csv"
-os.environ.setdefault("SMART_SENSOR_CSV_PATH", str(_demo_csv.resolve()))
 
 from api.main import app
 from api.shared.database import init_db, SessionLocal
@@ -33,15 +26,6 @@ def pytest_sessionfinish(session, exitstatus):
             os.unlink(_test_db_path)
     except Exception:
         pass
-
-
-@pytest.fixture(autouse=True)
-def reset_sensor_demo_cache():
-    """Avoid flaky sensor-demo tests: reload CSV each test if a prior attempt cached an empty dataset."""
-    from api.modules.sensor_demo import service
-
-    service.reset_sensor_demo_cache()
-    yield
 
 
 @pytest.fixture
@@ -64,11 +48,25 @@ def db_session():
 
 @pytest.fixture
 def test_user(db_session):
-    """Create or get test user."""
+    """Create or get test user (patient role)."""
     user = db_session.query(User).filter_by(email="test@example.com").first()
     if user:
         return user
-    user = User(email="test@example.com", username="testuser", first_name="Test")
+    user = User(email="test@example.com", username="testuser", first_name="Test", role="patient")
+    user.set_password("password123")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def test_clinician(db_session):
+    """Clinician user for RBAC-protected routes (e.g. sensor-demo)."""
+    user = db_session.query(User).filter_by(email="clinician@example.com").first()
+    if user:
+        return user
+    user = User(email="clinician@example.com", username="clinician_test", first_name="Clinical", role="clinician")
     user.set_password("password123")
     db_session.add(user)
     db_session.commit()
@@ -78,8 +76,25 @@ def test_user(db_session):
 
 @pytest.fixture
 def auth_headers(test_user):
-    """Generate auth headers with JWT."""
+    """Generate auth headers with JWT (includes role claim)."""
     import jwt
     from api.core.config import JWT_SECRET
-    token = jwt.encode({"userId": test_user.id, "exp": 9999999999}, JWT_SECRET, algorithm="HS256")
+    token = jwt.encode(
+        {"userId": test_user.id, "role": "patient", "exp": 9999999999},
+        JWT_SECRET,
+        algorithm="HS256",
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def auth_headers_clinician(test_clinician):
+    """JWT for clinician user."""
+    import jwt
+    from api.core.config import JWT_SECRET
+    token = jwt.encode(
+        {"userId": test_clinician.id, "role": "clinician", "exp": 9999999999},
+        JWT_SECRET,
+        algorithm="HS256",
+    )
     return {"Authorization": f"Bearer {token}"}

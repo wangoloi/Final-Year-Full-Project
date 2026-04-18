@@ -20,10 +20,12 @@ services:
     ports:
       - "8081:8001"
     environment:
+      APP_ENV: production
+      STRICT_STARTUP_VALIDATION: "true"
       PORT: "8001"
       DATABASE_URL: sqlite:////data/glocusense.db
-      JWT_SECRET: ${JWT_SECRET:-dev-jwt-change-me-min-32-chars-for-production}
-      GLUCOSENSE_EMBED_KEY: ${GLUCOSENSE_EMBED_KEY:-dev-embed-local-only}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.deploy}
+      GLUCOSENSE_EMBED_KEY: ${GLUCOSENSE_EMBED_KEY:?Set GLUCOSENSE_EMBED_KEY in .env.deploy}
       CORS_EXTRA_ORIGINS: ${CORS_EXTRA_ORIGINS:-}
     volumes:
       - meal_api_data:/data
@@ -33,7 +35,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=5)",
         ]
       interval: 15s
       timeout: 10s
@@ -62,17 +64,31 @@ services:
       - "8080:8000"
     environment:
       GLUCOSENSE_API_KEY: ${GLUCOSENSE_API_KEY:-}
+      CORS_ALLOW_ORIGINS: ${PUBLIC_GLUCOSENSE_URL:?Set PUBLIC_GLUCOSENSE_URL in .env.deploy},${PUBLIC_MEAL_WEB_URL:?Set PUBLIC_MEAL_WEB_URL in .env.deploy}
       # Internal URL for server-to-server SSO bridge
       MEAL_PLAN_API_URL: http://meal-api:8001
+      MEAL_PLAN_JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.deploy}
       # Shared secret (server-side only)
-      GLUCOSENSE_EMBED_KEY: ${GLUCOSENSE_EMBED_KEY:-dev-embed-local-only}
+      GLUCOSENSE_EMBED_KEY: ${GLUCOSENSE_EMBED_KEY:?Set GLUCOSENSE_EMBED_KEY in .env.deploy}
     volumes:
       - glucosense_outputs:/app/outputs
     depends_on:
       meal-api:
         condition: service_healthy
       meal-web:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=5)",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
 
 volumes:
   meal_api_data:

@@ -9,6 +9,12 @@ judged a message on- or off-topic — not token-level SHAP inside a generative L
 """
 from __future__ import annotations
 
+import os
+
+# Load before transformers/sentence_transformers (avoids optional TF/Keras import errors on API servers).
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
+
 import logging
 from typing import Any
 
@@ -53,9 +59,6 @@ ANCHOR_GROUPS: dict[str, list[str]] = {
 }
 
 POS_TRAIN = [
-    "give me more examples",
-    "tell me more about that",
-    "more please",
     "is matooke good for diabetes",
     "which foods keep blood sugar stable",
     "what carbs can I eat with type 2",
@@ -289,6 +292,8 @@ def analyze_message(text: str) -> dict[str, Any]:
 
 def off_topic_reply(_shap_text: str) -> str:
     """User-facing only — no internal SHAP / classifier dump in the chat bubble."""
-    from api.modules.chatbot.response_builder import build_off_topic_guidance_reply
-
-    return build_off_topic_guidance_reply()
+    return (
+        "I'm focused on **nutrition, foods, carbs, glycemic ideas, and diabetes-related eating**. "
+        "Your message looks **outside that scope**.\n\n"
+        "Ask about a **specific food**, **meals**, **carbs or GI**, or **glucose-friendly eating**."
+    )

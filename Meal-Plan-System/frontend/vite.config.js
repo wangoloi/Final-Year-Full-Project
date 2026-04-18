@@ -11,8 +11,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    // 5175 matches GlucoSense VITE_MEAL_PLAN_URL and scripts/start-integrated.ps1
     port: 5175,
+    // Avoid "timeouts on :5175" when Vite auto-picks another port.
+    // If 5175 is taken, fail fast so you know to close the old process.
     strictPort: true,
     proxy: {
       '/api': {

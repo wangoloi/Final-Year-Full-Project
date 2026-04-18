@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useClinical } from '../context/ClinicalContext'
-import * as clinicalApi from '../services/clinicalApi'
+import { apiFetch } from '../api'
 
+const API = '/api'
 const REPORTS_DOWNLOAD_TYPE = 'reports_download'
 
 const HOURS_12_MS = 12 * 60 * 60 * 1000
@@ -22,11 +23,7 @@ const ENDPOINT_OPTIONS = [
 
 const INPUT_LABELS = {
   glucose_level: 'Glucose (mg/dL)',
-  iob: 'Insulin on board (mL)',
-  anticipated_carbs: 'Anticipated carbs (g)',
-  glucose_trend: 'Glucose trend',
   age: 'Age',
-  food_intake: 'Food intake',
   physical_activity: 'Activity (min)',
   weight: 'Weight (kg)',
   BMI: 'BMI',
@@ -45,7 +42,6 @@ function formatOutcome(predictedClass) {
 
 function formatInputValue(key, value) {
   if (value == null) return '—'
-  if (key === 'glucose_trend') return String(value).replace(/_/g, ' ')
   return String(value)
 }
 
@@ -115,15 +111,12 @@ function downloadBlob(blob, filename) {
 
 /** Export filtered records as CSV (person-centric + outcome). Marks dates as downloaded. */
 function exportToCsv(records, onDownloaded) {
-  const headers = ['Date & time', 'Glucose', 'IOB', 'Carbs', 'Trend', 'Type', 'Outcome', 'Review', 'Request ID']
+  const headers = ['Date & time', 'Glucose', 'Type', 'Outcome', 'Review', 'Request ID']
   const rows = records.map((r) => {
     const in_ = r.input_summary || {}
     return [
       r.created_at ? new Date(r.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '',
       in_.glucose_level ?? '',
-      in_.iob ?? '',
-      in_.anticipated_carbs ?? '',
-      in_.glucose_trend ? String(in_.glucose_trend).replace(/_/g, ' ') : '',
       formatType(r.endpoint),
       formatOutcome(r.predicted_class),
       r.is_high_risk ? 'Review' : 'OK',
@@ -151,15 +144,12 @@ function exportToPdf(records, onDownloaded) {
   doc.text(`Generated ${new Date().toLocaleString()}`, 14, 28)
   doc.setFontSize(9)
 
-  const headers = [['Date & time', 'Glucose', 'IOB', 'Carbs', 'Trend', 'Type', 'Outcome', 'Review']]
+  const headers = [['Date & time', 'Glucose', 'Type', 'Outcome', 'Review']]
   const body = records.map((r) => {
     const in_ = r.input_summary || {}
     return [
       r.created_at ? new Date(r.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '—',
       in_.glucose_level ?? '—',
-      in_.iob ?? '—',
-      in_.anticipated_carbs ?? '—',
-      in_.glucose_trend ? String(in_.glucose_trend).replace(/_/g, ' ') : '—',
       formatType(r.endpoint),
       formatOutcome(r.predicted_class),
       r.is_high_risk ? 'Review' : 'OK',
@@ -195,7 +185,7 @@ function formatDateLabel(dateStr) {
 }
 
 export default function Reports() {
-  const { refreshFromApi, reportApiError } = useClinical()
+  const { refreshFromApi } = useClinical()
   const [data, setData] = useState({ records: [], count: 0 })
   const [patientCtx, setPatientCtx] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -205,46 +195,31 @@ export default function Reports() {
   const [timeRange, setTimeRange] = useState('12h')
   const [expandedId, setExpandedId] = useState(null)
   const [, setDownloadedVersion] = useState(0)
-  const [deletingId, setDeletingId] = useState(null)
-
-  const loadReports = useCallback(async (silent = false) => {
-    if (!silent) {
-      setLoading(true)
-      setError(null)
-    }
-    try {
-      const [json, ctx] = await Promise.all([
-        clinicalApi.fetchRecords(100),
-        clinicalApi.fetchPatientContext(),
-      ])
-      setData(json)
-      setPatientCtx(ctx)
-    } catch (e) {
-      if (!silent) setError(e.message)
-      reportApiError(e, 'Could not load reports.')
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }, [reportApiError])
 
   useEffect(() => {
-    loadReports(false)
-  }, [loadReports])
-
-  const handleDeleteRecord = async (recordId) => {
-    if (!window.confirm('Delete this report? This cannot be undone.')) return
-    setDeletingId(recordId)
-    try {
-      await clinicalApi.deleteRecord(recordId)
-      if (expandedId === recordId) setExpandedId(null)
-      await loadReports(true)
-      refreshFromApi?.()
-    } catch (e) {
-      reportApiError(e, 'Delete failed.')
-    } finally {
-      setDeletingId(null)
+    let cancelled = false
+    async function load() {
+      try {
+        const [recRes, ctxRes] = await Promise.all([
+          apiFetch(`${API}/records?limit=100`),
+          apiFetch(`${API}/patient-context`),
+        ])
+        if (!recRes.ok) throw new Error(await recRes.text())
+        const json = await recRes.json()
+        if (!cancelled) setData(json)
+        if (ctxRes.ok) {
+          const ctx = await ctxRes.json()
+          if (!cancelled) setPatientCtx(ctx)
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-  }
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   const allRecords = data.records || []
   const records = timeRange === '12h' ? filterLast12Hours(allRecords) : allRecords
@@ -267,20 +242,22 @@ export default function Reports() {
           const label = undownloadedDates.length === 1
             ? formatDateLabel(undownloadedDates[0])
             : `${undownloadedDates.length} days`
-          await clinicalApi.createNotification(
-            `Reports from ${label} ready to download. Go to Reports to download before the next session.`,
-            REPORTS_DOWNLOAD_TYPE,
-          )
+          await apiFetch(`${API}/notifications`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: `Reports from ${label} ready to download. Go to Reports to download before the next session.`,
+              type: REPORTS_DOWNLOAD_TYPE,
+            }),
+          })
         } else {
-          await clinicalApi.deleteNotificationsByType(REPORTS_DOWNLOAD_TYPE)
+          await apiFetch(`${API}/notifications/by-type/${REPORTS_DOWNLOAD_TYPE}`, { method: 'DELETE' })
         }
         refreshFromApi?.()
-      } catch (e) {
-        reportApiError(e, 'Could not sync report notifications.')
-      }
+      } catch (_) {}
     }
     syncNotification()
-  }, [loading, undownloadedDates.join(','), refreshFromApi, reportApiError])
+  }, [loading, undownloadedDates.join(','), refreshFromApi])
 
   if (loading) return <div className="loading">Loading session history…</div>
   if (error) return <div className="alert alert-warning">{error}</div>
@@ -389,13 +366,10 @@ export default function Reports() {
                 <tr>
                   <th>Date & time</th>
                   <th>Glucose</th>
-                  <th>IOB</th>
-                  <th>Carbs</th>
-                  <th>Trend</th>
                   <th>Type</th>
                   <th>Outcome</th>
                   <th>Review</th>
-                  <th>Delete</th>
+                  <th aria-hidden>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -406,41 +380,27 @@ export default function Reports() {
                       <tr className={expandedId === r.id ? 'row-expanded' : ''}>
                         <td>{r.created_at ? new Date(r.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '—'}</td>
                         <td>{in_.glucose_level ?? '—'}</td>
-                        <td>{in_.iob ?? '—'}</td>
-                        <td>{in_.anticipated_carbs ?? '—'}</td>
-                        <td>{in_.glucose_trend ? String(in_.glucose_trend).replace(/_/g, ' ') : '—'}</td>
                         <td>{formatType(r.endpoint)}</td>
                         <td>{formatOutcome(r.predicted_class)}</td>
                         <td>
-                          {r.is_high_risk ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm reports-review-btn"
-                              onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                              aria-expanded={expandedId === r.id}
-                              title="Open details for clinical review"
-                            >
-                              Review
-                            </button>
-                          ) : (
-                            <span className="badge badge-ok">OK</span>
-                          )}
+                          <span className={r.is_high_risk ? 'badge badge-warning' : 'badge badge-ok'}>
+                            {r.is_high_risk ? 'Review' : 'OK'}
+                          </span>
                         </td>
-                        <td className="reports-actions-cell">
+                        <td>
                           <button
                             type="button"
-                            className="btn btn-sm reports-delete-btn"
-                            disabled={deletingId === r.id}
-                            onClick={() => handleDeleteRecord(r.id)}
-                            title="Delete this report"
+                            className="btn btn-text btn-details"
+                            onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                            aria-expanded={expandedId === r.id}
                           >
-                            {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                            {expandedId === r.id ? 'Hide details' : 'Details'}
                           </button>
                         </td>
                       </tr>
                       {expandedId === r.id && (getInputSummaryDisplay(r.input_summary).length > 0 || (r.response_summary && Object.keys(r.response_summary).length > 0)) && (
                         <tr key={`${r.id}-detail`} className="row-detail">
-                          <td colSpan={9}>
+                          <td colSpan={6}>
                             <div className="reports-detail-panel">
                               {getInputSummaryDisplay(r.input_summary).length > 0 && (
                                 <div className="reports-detail-block">

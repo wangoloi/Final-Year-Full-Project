@@ -36,17 +36,16 @@ class User(Base):
     profile_completed = Column(Boolean, default=False, nullable=False)
     onboarding_completed = Column(Boolean, default=False, nullable=False)
 
+    # Server-enforced RBAC: patient | clinician | admin (JWT includes same claim)
+    role = Column(String(32), nullable=False, default="patient")
+
     def set_password(self, password: str):
         self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
     def check_password(self, password: str) -> bool:
         if not self.password_hash:
             return False
-        try:
-            return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
-        except (ValueError, TypeError):
-            # Invalid or legacy non-bcrypt hash — treat as failed login, do not 500 the API
-            return False
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
 
     def to_dict(self):
         return {
@@ -63,6 +62,7 @@ class User(Base):
             'onboarding_completed': True
             if self.onboarding_completed is None
             else bool(self.onboarding_completed),
+            'role': (self.role or 'patient').lower(),
         }
 
 
@@ -101,18 +101,6 @@ class GlucoseReading(Base):
     reading_type = Column(String(20), nullable=False)
     reading_time = Column(DateTime, default=datetime.utcnow, nullable=False)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class UserFoodFeedback(Base):
-    """Lightweight learning signal: like / skip on recommended foods."""
-
-    __tablename__ = 'meal_recommendation_feedback'
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    food_id = Column(Integer, ForeignKey('food_items.id'), nullable=False)
-    action = Column(String(10), nullable=False)  # like | skip
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

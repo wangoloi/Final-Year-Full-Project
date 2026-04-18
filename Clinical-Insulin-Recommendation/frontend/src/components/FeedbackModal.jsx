@@ -7,7 +7,7 @@ const RISK_LABELS = {
   high_ketones: 'High ketones',
 }
 
-export default function FeedbackModal({ open, onClose, onSubmit, loading, success }) {
+export default function FeedbackModal({ open, onClose, onSubmit, loading, success, variant = 'override' }) {
   const [clinicianAction, setClinicianAction] = useState('')
   useEffect(() => {
     if (!open) return
@@ -19,24 +19,70 @@ export default function FeedbackModal({ open, onClose, onSubmit, loading, succes
   const [actualDoseUnits, setActualDoseUnits] = useState('')
   const [overrideReason, setOverrideReason] = useState('')
 
+  useEffect(() => {
+    if (!open) return
+    setClinicianAction('')
+    setActualDoseUnits('')
+    setOverrideReason('')
+  }, [open, variant])
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    onSubmit({ clinician_action: clinicianAction, actual_dose_units: actualDoseUnits, override_reason: overrideReason })
+    if (variant === 'reject') {
+      onSubmit({ clinician_action: 'rejected', actual_dose_units: actualDoseUnits, override_reason: overrideReason })
+    } else {
+      onSubmit({ clinician_action: clinicianAction, actual_dose_units: actualDoseUnits, override_reason: overrideReason })
+    }
     setClinicianAction('')
     setActualDoseUnits('')
     setOverrideReason('')
   }
 
   if (!open) return null
+  const isReject = variant === 'reject'
   return (
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="feedback-title">
       <div className="modal-card confirm-dose-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-        <h2 id="feedback-title" className="card-heading">Report clinician override</h2>
+        <h2 id="feedback-title" className="card-heading">{isReject ? 'Reject recommendation' : 'Report clinician override'}</h2>
         <p className="card-description" style={{ marginBottom: '1rem' }}>
-          Record when you override the system recommendation. This helps improve future models.
+          {isReject
+            ? 'Record that you are not following this assessment. A short reason helps audit and model improvement.'
+            : 'Record when you override the system recommendation. This helps improve future models.'}
         </p>
         {success ? (
           <p className="text-success" style={{ fontWeight: 600 }}>Feedback recorded. Thank you.</p>
+        ) : isReject ? (
+          <form onSubmit={handleSubmit}>
+            <label className="form-field" style={{ display: 'block', marginBottom: '1rem' }}>
+              <span className="form-label">Reason for rejection</span>
+              <textarea
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                className="form-input"
+                rows={4}
+                required
+                placeholder="Why is this assessment not appropriate for this patient or context?"
+              />
+            </label>
+            <label className="form-field" style={{ display: 'block', marginBottom: '1rem' }}>
+              <span className="form-label">Actual dose (units, if you still administered one)</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={actualDoseUnits}
+                onChange={(e) => setActualDoseUnits(e.target.value)}
+                className="form-input"
+                placeholder="Optional"
+              />
+            </label>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={loading || !overrideReason.trim()}>
+                {loading ? 'Sending…' : 'Submit rejection'}
+              </button>
+            </div>
+          </form>
         ) : (
           <form onSubmit={handleSubmit}>
             <label className="form-field" style={{ display: 'block', marginBottom: '1rem' }}>

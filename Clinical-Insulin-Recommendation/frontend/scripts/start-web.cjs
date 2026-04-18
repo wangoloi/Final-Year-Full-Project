@@ -3,27 +3,42 @@
  */
 const waitOn = require('wait-on')
 const { spawn } = require('child_process')
+const fs = require('fs')
 const path = require('path')
 
 const frontendRoot = path.resolve(__dirname, '..')
 const vite = path.join(frontendRoot, 'node_modules', 'vite', 'bin', 'vite.js')
+const repoRoot = path.resolve(frontendRoot, '..')
+const apiPortFile = path.join(frontendRoot, '.glucosense-api-port')
+const apiHost = process.env.GLUCOSENSE_API_HOST || '127.0.0.1'
+const webPort = Number(process.env.GLUCOSENSE_WEB_PORT || 5173)
 
-// First cold import (ML stack + FastAPI routes) can exceed 2 minutes on some machines.
-const WAIT_MS = Number(process.env.GLUCOSENSE_API_WAIT_MS) || 600000
+function resolveApiPort() {
+  if (process.env.GLUCOSENSE_API_PORT && String(process.env.GLUCOSENSE_API_PORT).trim()) {
+    return Number(process.env.GLUCOSENSE_API_PORT)
+  }
+  try {
+    const raw = fs.readFileSync(apiPortFile, 'utf8').trim()
+    const n = Number(raw)
+    if (Number.isFinite(n) && n > 0) return n
+  } catch {
+    /* ignore */
+  }
+  return 8000
+}
 
-console.log(
-  `[web] Waiting for API (GET /api/health/live), up to ${Math.round(WAIT_MS / 1000)}s — first start can be slow…`
-)
+const apiPort = resolveApiPort()
+process.env.GLUCOSENSE_API_PORT = String(apiPort)
 
 waitOn({
   // Prefix required — bare http:// is treated as a file path by wait-on
-  resources: ['http-get://127.0.0.1:8000/api/health/live'],
-  timeout: WAIT_MS,
-  interval: 500,
+  resources: [`http-get://${apiHost}:${apiPort}/api/health/ready`],
+  timeout: 120000,
+  interval: 400,
 })
   .then(() => {
-    console.log('[web] API ready, starting Vite...')
-    const child = spawn(process.execPath, [vite], {
+    console.log('[web] API and model readiness confirmed, starting Vite...')
+    const child = spawn(process.execPath, [vite, '--port', String(webPort), '--strictPort'], {
       cwd: frontendRoot,
       stdio: 'inherit',
       env: { ...process.env },

@@ -1,19 +1,33 @@
 /**
  * Embedded Glocusense meal plan — loaded only from workspace nav (not on Dashboard home).
  */
-import { useRef } from 'react'
+import { useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useMealPlanSsoBridge } from '../components/MealPlanSsoBridge'
 import { getMealPlanAppUrl, WORKSPACE_PATH } from '../constants'
 
 export default function MealPlanEmbedPage() {
   const mealIframeRef = useRef(null)
-  const { onIframeLoad: onMealIframeLoad } = useMealPlanSsoBridge(mealIframeRef)
+  const { onIframeLoad: onMealIframeLoad, ssoError, dismissSsoError } = useMealPlanSsoBridge(mealIframeRef)
+  const iframeSrc = useMemo(() => getMealPlanAppUrl({ embed: true }), [])
 
   return (
     <div className="dashboard">
       <section className="dashboard-section dashboard-meal-plan-embed" aria-labelledby="meal-plan-embed-heading">
         <div className="card">
+          {ssoError && (
+            <div className="alert alert-warning meal-plan-sso-banner" role="alert">
+              <div className="meal-plan-sso-banner__row">
+                <div>
+                  <strong>Connection issue</strong>
+                  <p className="meal-plan-sso-banner__msg">{ssoError}</p>
+                </div>
+                <button type="button" className="meal-plan-sso-banner__dismiss" onClick={dismissSsoError} aria-label="Dismiss">
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
           <h2 id="meal-plan-embed-heading" className="dashboard-meal-plan-title">Meal plan (Glocusense)</h2>
           <p className="card-description" style={{ marginTop: 0 }}>
             Embedded meal-planning app for the same patient journey. Run the Meal Plan dev server and set{' '}
@@ -23,7 +37,7 @@ export default function MealPlanEmbedPage() {
             <iframe
               ref={mealIframeRef}
               title="Glocusense meal plan"
-              src={getMealPlanAppUrl({ embed: true })}
+              src={iframeSrc}
               className="meal-plan-embed-iframe"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
               onLoad={onMealIframeLoad}

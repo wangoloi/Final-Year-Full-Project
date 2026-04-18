@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
-import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { FiBell, FiAlertTriangle, FiUser, FiChevronDown, FiActivity, FiGrid, FiTrendingUp, FiFileText, FiSliders, FiSun, FiMenu, FiCoffee, FiClipboard } from 'react-icons/fi'
 import { useClinical } from '../context/ClinicalContext'
-import { WORKSPACE_PATH } from '../constants'
-import ApiErrorBanner from './ApiErrorBanner'
-import { getSettings, putSettings } from '../services/clinicalApi'
+import { apiFetch } from '../api'
+import { WORKSPACE_PATH, getPublicSiteHostname } from '../constants'
+import BrandLogo from './BrandLogo'
+
+const API = '/api'
 
 function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
   const navigate = useNavigate()
-  const { notifications, clearNotificationBadge, setTheme, setSignedIn, userProfile, setUserProfile, reportApiError } = useClinical()
+  const { notifications, setNotifications, setTheme, setSignedIn, userProfile, setUserProfile } = useClinical()
   const [profileEdit, setProfileEdit] = useState({ displayName: '', role: '', email: '' })
   const [profileSaved, setProfileSaved] = useState(false)
   const [accountToast, setAccountToast] = useState('')
@@ -19,26 +21,19 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
   const [settings, setSettings] = useState({ units: 'mg/dL', theme: 'light', notifications_enabled: true })
   const notifRef = useRef(null)
   const profileRef = useRef(null)
+  const clickTimersRef = useRef(new Map())
 
   const unreadCount = notifications.filter((n) => n.unread).length
 
   useEffect(() => {
-    getSettings()
-      .then((d) => {
-        if (d) {
-          setSettings(d)
-          setTheme(d.theme || 'light')
-        }
-      })
-      .catch((e) => reportApiError(e, 'Could not load settings.'))
-  }, [setTheme, reportApiError])
+    apiFetch(`${API}/settings`).then((r) => r.ok && r.json()).then((d) => {
+      if (d) { setSettings(d); setTheme(d.theme || 'light') }
+    }).catch(() => {})
+  }, [setTheme])
 
   useEffect(() => {
-    if (!showSettings) return
-    getSettings()
-      .then((d) => d && setSettings(d))
-      .catch((e) => reportApiError(e, 'Could not load settings.'))
-  }, [showSettings, reportApiError])
+    if (showSettings) apiFetch(`${API}/settings`).then((r) => r.ok && r.json()).then((d) => d && setSettings(d)).catch(() => {})
+  }, [showSettings])
 
   useEffect(() => {
     setTheme(settings.theme || 'light')
@@ -62,7 +57,7 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
     const next = { ...settings, [key]: value }
     setSettings(next)
     if (key === 'theme') setTheme(value || 'light')
-    putSettings(next).catch((e) => reportApiError(e, 'Could not save settings.'))
+    apiFetch(`${API}/settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) }).catch(() => {})
   }
 
   const goToDashboard = () => { setShowNotifications(false); navigate(WORKSPACE_PATH) }
@@ -81,7 +76,44 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
     setTimeout(() => setProfileSaved(false), 2000)
   }
   const handlePreferences = () => { setShowProfile(false); setShowSettings(true) }
-  const handleSignOut = () => { setShowProfile(false); setSignedIn(false); navigate('/') }
+  const handleSignOut = () => {
+    setShowProfile(false)
+    setSignedIn(false)
+    navigate(WORKSPACE_PATH)
+  }
+
+  const handleNotificationSingleClick = (notif) => {
+    if (!notif?.id) return
+    // Delay single-click to allow dblclick to win.
+    const existing = clickTimersRef.current.get(notif.id)
+    if (existing) clearTimeout(existing)
+    const t = setTimeout(async () => {
+      // Mark read + auto-delete, and update badge immediately.
+      setNotifications((prev) => prev.filter((n) => n.id !== notif.id))
+      try {
+        await apiFetch(`${API}/notifications/${notif.id}/read`, { method: 'PATCH' })
+      } catch (_) {}
+      try {
+        await apiFetch(`${API}/notifications/${notif.id}`, { method: 'DELETE' })
+      } catch (_) {}
+      clickTimersRef.current.delete(notif.id)
+    }, 220)
+    clickTimersRef.current.set(notif.id, t)
+  }
+
+  const handleNotificationDoubleClick = (notif) => {
+    if (!notif?.id) return
+    const existing = clickTimersRef.current.get(notif.id)
+    if (existing) {
+      clearTimeout(existing)
+      clickTimersRef.current.delete(notif.id)
+    }
+    // For dblclick we still treat it as read and delete, then navigate.
+    setNotifications((prev) => prev.filter((n) => n.id !== notif.id))
+    apiFetch(`${API}/notifications/${notif.id}/read`, { method: 'PATCH' }).catch(() => {})
+    apiFetch(`${API}/notifications/${notif.id}`, { method: 'DELETE' }).catch(() => {})
+    goToAlerts()
+  }
 
   return (
     <header className="topbar">
@@ -96,7 +128,7 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
           <FiMenu size={22} />
         </button>
         <div
-          className="topbar-logo topbar-logo-clickable"
+          className="topbar-logo topbar-logo-clickable topbar-logo--mark"
           aria-hidden="true"
           onClick={onLogoTripleClick}
           role="button"
@@ -104,10 +136,13 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
           onKeyDown={(e) => e.key === 'Enter' && onLogoTripleClick()}
           title="GlucoSense"
         >
-          <FiActivity size={24} />
+          <BrandLogo size={34} />
         </div>
-        <div>
+        <div className="topbar-brand-text">
           <span className="topbar-title">GlucoSense</span>
+          <span className="topbar-site-host" title="Public site (shown for branding; deploy + DNS to use in the address bar)">
+            {getPublicSiteHostname()}
+          </span>
           <span className="topbar-subtitle">Clinical CDS + Meal Plan</span>
         </div>
       </div>
@@ -118,7 +153,7 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
             type="button"
             className="topbar-icon-btn"
             title="Notifications"
-            onClick={() => { setShowNotifications((v) => !v); setShowProfile(false); if (unreadCount) clearNotificationBadge(); }}
+            onClick={() => { setShowNotifications((v) => !v); setShowProfile(false) }}
             aria-label="Notifications"
             aria-expanded={showNotifications}
           >
@@ -128,26 +163,25 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
           {showNotifications && (
             <div className="topbar-dropdown-panel topbar-notifications">
               <div className="topbar-dropdown-header">Notifications</div>
-              <div className="topbar-notifications-list" role="list" aria-label="Notifications list">
-                {notifications.length === 0 ? (
-                  <div className="topbar-dropdown-item topbar-dropdown-empty" role="listitem">
-                    No new notifications
+              {notifications.length === 0 ? (
+                <div className="topbar-dropdown-item topbar-dropdown-empty">No new notifications</div>
+              ) : (
+                notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`topbar-dropdown-item ${n.unread ? 'unread' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    title="Click: mark read • Double-click: open Alerts"
+                    onClick={() => handleNotificationSingleClick(n)}
+                    onDoubleClick={() => handleNotificationDoubleClick(n)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleNotificationSingleClick(n)}
+                  >
+                    <p>{n.text}</p>
+                    <span className="topbar-dropdown-meta">{n.time}</span>
                   </div>
-                ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      role="listitem"
-                      title="Double-click to open Alerts"
-                      onDoubleClick={goToAlerts}
-                      className={`topbar-dropdown-item ${n.unread ? 'unread' : ''}`}
-                    >
-                      <p>{n.text}</p>
-                      <span className="topbar-dropdown-meta">{n.time}</span>
-                    </div>
-                  ))
-                )}
-              </div>
+                ))
+              )}
               <div className="topbar-dropdown-footer">
                 <span className="topbar-dropdown-footer-label">Quick links</span>
                 <div className="topbar-dropdown-actions">
@@ -178,7 +212,9 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
               <div className="topbar-dropdown-header">Account</div>
               <button type="button" className="topbar-dropdown-item" onClick={handleProfile}>Profile</button>
               <button type="button" className="topbar-dropdown-item" onClick={handlePreferences}>Preferences</button>
-              <button type="button" className="topbar-dropdown-item" onClick={handleSignOut}>Sign out</button>
+              <button type="button" className="topbar-dropdown-item" onClick={handleSignOut}>
+                Disconnect Meal Plan link
+              </button>
             </div>
           )}
         </div>
@@ -293,10 +329,21 @@ function TopBar({ sidebarOpen, onToggleSidebar, onLogoTripleClick }) {
   )
 }
 
+function patientNameLabel(name) {
+  if (name == null || name === '') return 'Current Patient'
+  if (typeof name === 'string') return name
+  if (typeof name === 'number' || typeof name === 'boolean') return String(name)
+  return 'Current Patient'
+}
+
+function patientNameInitials(name) {
+  const s = patientNameLabel(name).trim()
+  return s ? s.slice(0, 2).toUpperCase() : '?'
+}
+
 function Sidebar({ isOpen, onClose }) {
   const { patient } = useClinical()
-  const patientName =
-    patient?.name != null && patient.name !== '' ? String(patient.name) : 'Patient'
+  const displayName = patientNameLabel(patient?.name)
 
   const handleNavClick = (e) => {
     const link = e.target.closest('a')
@@ -311,10 +358,10 @@ function Sidebar({ isOpen, onClose }) {
       </div>
       <div className="sidebar-patient-card">
         <div className="sidebar-patient-photo">
-          {patient.photoPlaceholder ? <span>{patientName.slice(0, 2).toUpperCase()}</span> : null}
+          {patient.photoPlaceholder ? <span>{patientNameInitials(patient?.name)}</span> : null}
         </div>
-        <div className="sidebar-patient-name">{patientName}</div>
-        <div className="sidebar-patient-condition">{patient.condition}</div>
+        <div className="sidebar-patient-name">{displayName}</div>
+        <div className="sidebar-patient-condition">{patient?.condition != null && patient.condition !== '' ? String(patient.condition) : '—'}</div>
       </div>
 
       <nav className="sidebar-nav" aria-label="Main" onClick={handleNavClick}>
@@ -334,7 +381,7 @@ function Sidebar({ isOpen, onClose }) {
 const TRIPLE_CLICK_THRESHOLD_MS = 500
 
 export default function Layout() {
-  const { theme, isSignedIn } = useClinical()
+  const { theme } = useClinical()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const logoClickCount = useRef(0)
@@ -352,10 +399,6 @@ export default function Layout() {
     }, TRIPLE_CLICK_THRESHOLD_MS)
   }
 
-  if (!isSignedIn) {
-    return <Navigate to="/login" replace state={{ from: 'workspace' }} />
-  }
-
   return (
     <div className="app-shell">
       <TopBar
@@ -369,7 +412,6 @@ export default function Layout() {
           <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
         )}
         <main className="app-main" id="main-content">
-          <ApiErrorBanner />
           <Outlet />
         </main>
       </div>

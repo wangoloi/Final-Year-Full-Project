@@ -100,30 +100,16 @@ class RecommendationExplanationGenerator:
         similar_summary: Optional[str] = None
         if self._X_ref is not None and (query_index_in_ref is not None or patient_features is not None):
             try:
-                from sklearn.neighbors import NearestNeighbors
-
+                from ..explainability import ClinicalReportGenerator
+                gen = ClinicalReportGenerator()
                 k = self._cfg.similar_patients_k
                 if query_index_in_ref is not None:
-                    xq = self._X_ref[query_index_in_ref : query_index_in_ref + 1]
-                    nn = NearestNeighbors(
-                        n_neighbors=min(k + 1, len(self._X_ref)), metric="euclidean"
-                    ).fit(self._X_ref)
-                    dists, indices = nn.kneighbors(xq)
-                    indices = indices[0]
-                    dists = dists[0]
-                    for idx, d in zip(indices[: k + 1], dists[: k + 1]):
-                        if int(idx) == query_index_in_ref:
-                            continue
-                        rec_dict = {"index": int(idx), "distance": float(d)}
-                        if self._y_ref is not None:
-                            rec_dict["outcome"] = str(self._y_ref[idx])
-                        similar_patients.append(rec_dict)
-                        if len(similar_patients) >= k:
-                            break
-                else:
-                    nn = NearestNeighbors(n_neighbors=min(k + 1, len(self._X_ref)), metric="euclidean").fit(
-                        self._X_ref
+                    similar_patients = gen.find_similar_patients(
+                        self._X_ref, query_index_in_ref, k, self._y_ref
                     )
+                else:
+                    from sklearn.neighbors import NearestNeighbors
+                    nn = NearestNeighbors(n_neighbors=min(k + 1, len(self._X_ref)), metric="euclidean").fit(self._X_ref)
                     dists, indices = nn.kneighbors(patient_features.reshape(1, -1))
                     indices = indices[0]
                     dists = dists[0]

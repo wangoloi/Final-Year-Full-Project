@@ -23,9 +23,6 @@ class PatientInput(BaseModel):
     patient_id: Optional[str] = Field(None, description="Optional identifier")
     gender: Optional[str] = None
     family_history: Optional[str] = None
-    food_intake: Optional[str] = None
-    previous_medications: Optional[str] = None
-    medication_name: Optional[str] = Field(None, description="Required when previous_medications is Oral")
     age: Optional[float] = None
     glucose_level: Optional[float] = None
     physical_activity: Optional[float] = None
@@ -35,10 +32,6 @@ class PatientInput(BaseModel):
     insulin_sensitivity: Optional[float] = None
     sleep_hours: Optional[float] = None
     creatinine: Optional[float] = None
-    # Type 1 diabetes dosing context (optional; used for insulin stacking check and context summary; also model features)
-    iob: Optional[float] = Field(None, description="Insulin on board (mL)")
-    anticipated_carbs: Optional[float] = Field(None, description="Anticipated carbohydrates (g)")
-    glucose_trend: Optional[str] = Field(None, description="Glucose trend: stable, rising, falling")
     # ICR (1 unit per X g carbs) and ISF (1 unit lowers BG by X mg/dL) for meal/correction dosing
     icr: Optional[float] = Field(None, description="Insulin-to-carb ratio (1 unit per X g carbs)")
     isf: Optional[float] = Field(None, description="Correction factor (1 unit lowers BG by X mg/dL)")
@@ -47,7 +40,7 @@ class PatientInput(BaseModel):
     cgm_sensor_error: Optional[bool] = Field(None, description="True if CGM reports sensor error; requires finger-stick")
     typical_daily_insulin: Optional[float] = Field(None, description="7-day average total daily insulin (units) for HIGH UNCERTAINTY check")
 
-    @field_validator("age", "glucose_level", "physical_activity", "BMI", "HbA1c", "weight", "insulin_sensitivity", "sleep_hours", "creatinine", "iob", "anticipated_carbs", "icr", "isf", "typical_daily_insulin", mode="before")
+    @field_validator("age", "glucose_level", "physical_activity", "BMI", "HbA1c", "weight", "insulin_sensitivity", "sleep_hours", "creatinine", "icr", "isf", "typical_daily_insulin", mode="before")
     @classmethod
     def coerce_numeric(cls, v: Any) -> Optional[float]:
         if v is None:
@@ -65,8 +58,9 @@ class PatientInput(BaseModel):
             schema.PATIENT_ID: self.patient_id or "",
             "gender": self.gender,
             "family_history": self.family_history,
-            "food_intake": self.food_intake,
-            "previous_medications": self.previous_medications,
+            # Backward-compatible model features (no longer collected from UI/API)
+            "food_intake": "medium",
+            "previous_medications": "none",
             "age": self.age,
             "glucose_level": self.glucose_level,
             "physical_activity": self.physical_activity,
@@ -76,9 +70,9 @@ class PatientInput(BaseModel):
             "insulin_sensitivity": self.insulin_sensitivity,
             "sleep_hours": self.sleep_hours,
             "creatinine": self.creatinine,
-            "iob": self.iob if self.iob is not None else 0.0,
-            "anticipated_carbs": self.anticipated_carbs if self.anticipated_carbs is not None else 0.0,
-            "glucose_trend": self.glucose_trend if self.glucose_trend else "stable",
+            "anticipated_carbs": 0.0,
+            "iob": 0.0,
+            "glucose_trend": "stable",
         }
         return row
 
@@ -204,18 +198,6 @@ class RecommendationResponse(BaseModel):
     confidence_level: float = Field(0.0, description="0.0-1.0 confidence score")
     risk_flags: List[str] = Field(default_factory=list, description="e.g. hypoglycemia_alert, high_uncertainty, cgm_error")
     requires_urgent_validation: bool = Field(False, description="True when confidence <0.8")
-    contributing_factors: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Model features with highest global importance and optional current values",
-    )
-    uncertainty_factors: List[str] = Field(
-        default_factory=list,
-        description="Plain-language reasons certainty may be limited (missing data, ambiguous tiers, etc.)",
-    )
-    clinical_assessment: str = Field(
-        "",
-        description="Short clinician-style synthesis: context, basis, limitations (decision support only)",
-    )
 
 
 class ModelInfoResponse(BaseModel):

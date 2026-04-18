@@ -2,127 +2,184 @@
  * Patients API service.
  * CRUD for patients, patient records, and backups.
  */
-import { requestJson } from './http'
+import { apiFetch } from '../api'
 
 const API = '/api'
 
+/** FastAPI may return detail as a string, object, or validation array */
+function formatApiDetail(payload) {
+  const d = payload?.detail
+  if (d == null) return null
+  if (typeof d === 'string') return d
+  if (Array.isArray(d)) {
+    return d
+      .map((x) => (x && typeof x === 'object' && 'msg' in x ? x.msg : String(x)))
+      .filter(Boolean)
+      .join('; ')
+  }
+  if (typeof d === 'object' && d.msg) return String(d.msg)
+  return String(d)
+}
+
 export async function fetchPatients() {
-  const data = await requestJson(`${API}/patients`)
+  const res = await apiFetch(`${API}/patients`)
+  if (!res.ok) return { patients: [], count: 0 }
+  const data = await res.json()
   return { patients: data.patients || [], count: data.count || 0 }
 }
 
-export async function fetchDeletedPatients() {
-  const data = await requestJson(`${API}/patients/deleted`)
-  return { patients: data.patients || [], count: data.count || 0 }
-}
-
-/** @deprecated use fetchDeletedPatients */
-export async function fetchArchivedPatients() {
-  return fetchDeletedPatients()
+export async function fetchRemovedPatients() {
+  // removed_only=1 (integer) — same route as active list; avoids path collisions with /patients/{id}.
+  const res = await apiFetch(`${API}/patients?removed_only=1`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return {
+      patients: [],
+      count: 0,
+      error: formatApiDetail(err) || `Could not load removed patients (${res.status})`,
+    }
+  }
+  const data = await res.json()
+  return { patients: data.patients || [], count: data.count || 0, error: null }
 }
 
 export async function fetchPatient(id) {
-  return requestJson(`${API}/patients/${id}`)
+  const res = await apiFetch(`${API}/patients/${id}`)
+  if (!res.ok) return null
+  return res.json()
 }
 
 export async function createPatient(payload) {
-  try {
-    const data = await requestJson(`${API}/patients`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    return { ok: true, id: data.id }
-  } catch (e) {
-    return { ok: false, error: e?.message || 'Failed to create patient' }
+  const res = await apiFetch(`${API}/patients`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Failed to create patient' }
+  }
+  const data = await res.json()
+  return { ok: true, id: data.id }
+}
+
+export async function seedDemoPatients(force = false) {
+  const res = await apiFetch(`${API}/patients/seed-demo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Failed to load demo data' }
+  }
+  const data = await res.json()
+  return {
+    ok: true,
+    monitoring_seeded_for: data.monitoring_seeded_for,
+    patient_ids: data.patient_ids,
+    patients: data.patients || [],
   }
 }
 
-export async function updatePatient(id, payload) {
-  try {
-    await requestJson(`${API}/patients/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: e?.message || 'Failed to update patient' }
+export async function ensurePatientDemoMonitoring(patientId) {
+  const res = await apiFetch(`${API}/patients/${patientId}/ensure-demo-monitoring`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Failed to ensure demo data', seeded: false }
   }
-}
-
-/** Soft-delete: patient is removed from the active list; restore from Deleted below. */
-export async function deletePatient(id) {
-  try {
-    await requestJson(`${API}/patients/${id}`, { method: 'DELETE' })
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: e?.message || 'Failed to delete patient' }
-  }
-}
-
-/** @deprecated use deletePatient */
-export async function archivePatient(id) {
-  return deletePatient(id)
+  const data = await res.json()
+  return { ok: true, seeded: Boolean(data.seeded), reason: data.reason }
 }
 
 export async function restorePatient(id) {
-  try {
-    await requestJson(`${API}/patients/${id}/restore`, { method: 'POST' })
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: e?.message || 'Failed to restore patient' }
+  const pid = Number(id)
+  if (!Number.isFinite(pid) || pid <= 0) {
+    return { ok: false, error: 'Invalid patient id' }
   }
+  const res = await apiFetch(`${API}/patients/${pid}/restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: formatApiDetail(err) || 'Could not restore patient' }
+  }
+  const data = await res.json().catch(() => ({}))
+  return { ok: true, warning: data.warning || null }
 }
 
-/** Permanently remove patient and linked assessment data. */
-export async function purgePatient(id) {
-  try {
-    await requestJson(`${API}/patients/${id}/permanent`, { method: 'DELETE' })
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: e?.message || 'Failed to permanently delete patient' }
+export async function deletePatient(id) {
+  const res = await apiFetch(`${API}/patients/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Failed to delete patient' }
   }
+  return { ok: true }
+}
+
+export async function updatePatient(id, payload) {
+  const res = await apiFetch(`${API}/patients/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Failed to update patient' }
+  }
+  return { ok: true }
 }
 
 export async function fetchPatientRecords(patientId, limit = 100) {
-  const data = await requestJson(`${API}/patients/${patientId}/records?limit=${limit}`)
+  const res = await apiFetch(`${API}/patients/${patientId}/records?limit=${limit}`)
+  if (!res.ok) return { records: [], count: 0 }
+  const data = await res.json()
   return { records: data.records || [], count: data.count || 0 }
 }
 
 export async function fetchPatientGlucoseReadings(patientId, hours = 72) {
-  const data = await requestJson(`${API}/patients/${patientId}/glucose-readings?hours=${hours}`)
+  const res = await apiFetch(`${API}/patients/${patientId}/glucose-readings?hours=${hours}`)
+  if (!res.ok) return { readings: [], count: 0 }
+  const data = await res.json()
   return { readings: data.readings || [], count: data.count || 0 }
 }
 
 export async function fetchPatientDoseEvents(patientId, limit = 50) {
-  const data = await requestJson(`${API}/patients/${patientId}/dose-events?limit=${limit}`)
+  const res = await apiFetch(`${API}/patients/${patientId}/dose-events?limit=${limit}`)
+  if (!res.ok) return { events: [], count: 0 }
+  const data = await res.json()
   return { events: data.events || [], count: data.count || 0 }
 }
 
 export async function createBackup() {
-  try {
-    const data = await requestJson(`${API}/backup`, { method: 'POST' })
-    return { ok: true, path: data?.path }
-  } catch (e) {
-    return { ok: false, error: e?.message || 'Backup failed' }
-  }
+  const res = await apiFetch(`${API}/backup`, { method: 'POST' })
+  if (!res.ok) return { ok: false, error: 'Backup failed' }
+  const data = await res.json().catch(() => ({}))
+  return { ok: true, path: data.path }
 }
 
 export async function fetchBackups() {
-  const data = await requestJson(`${API}/backups`)
+  const res = await apiFetch(`${API}/backups`)
+  if (!res.ok) return { backups: [], count: 0 }
+  const data = await res.json()
   return { backups: data.backups || [], count: data.count || 0 }
 }
 
 export async function restoreBackup(filename) {
-  try {
-    await requestJson(`${API}/backups/restore`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename }),
-    })
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: e?.message || 'Restore failed' }
+  const res = await apiFetch(`${API}/backups/restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return { ok: false, error: err.detail || 'Restore failed' }
   }
+  return { ok: true }
 }

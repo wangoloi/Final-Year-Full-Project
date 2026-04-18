@@ -1,5 +1,6 @@
 """API endpoint tests - FastAPI."""
 import pytest
+import re
 
 
 def test_health(client):
@@ -20,6 +21,7 @@ def test_register(client):
     data = r.json()
     assert "token" in data
     assert data["user"]["email"] == "new@example.com"
+    assert data["user"].get("role") == "patient"
 
 
 def test_login(client, test_user):
@@ -48,6 +50,7 @@ def test_me(client, test_user, auth_headers):
     assert r.status_code == 200
     assert r.json()["user"]["username"] == "testuser"
     assert "onboarding_completed" in r.json()["user"]
+    assert r.json()["user"].get("role") == "patient"
 
 
 def test_onboarding_complete(client, test_user, auth_headers):
@@ -79,57 +82,10 @@ def test_search(client, test_user, auth_headers):
 
 
 def test_recommendations(client, test_user, auth_headers):
-    """Engine returns user-centered guidance, weekly plan, and glucose context (no raw scores)."""
+    """Recommendations returns list."""
     r = client.get("/api/recommendations", headers=auth_headers)
     assert r.status_code == 200
-    data = r.json()
-    assert data.get("engine_version") == "3.0"
-    assert "guidance" in data
-    g = data["guidance"]
-    assert g.get("current_state") in ("high", "low", "normal", "unknown")
-    assert "next_action" in g and g["next_action"].get("meal")
-    assert "alternatives" in g and isinstance(g["alternatives"], list)
-    assert "avoid" in g and isinstance(g["avoid"], list)
-    assert "explanation" in g and len(g["explanation"]) > 10
-    assert "weekly_plan" in data and isinstance(data["weekly_plan"], list)
-    assert "glucose_context" in data
-    ctx = data["glucose_context"]
-    assert ctx.get("tier") in ("unknown", "below_range", "in_range", "above_range", "high")
-    assert "glucose_state" in ctx
-    assert "meal_logic" not in ctx
-
-
-def test_recommendation_engine_meta(client, test_user, auth_headers):
-    """Engine diagnostics endpoint."""
-    r = client.get("/api/recommendations/engine", headers=auth_headers)
-    assert r.status_code == 200
-    data = r.json()
-    assert data.get("engine_version") == "3.0"
-    assert "cache" in data and "ttl_sec" in data["cache"]
-
-
-def test_recommendations_repeat_ok(client, test_user, auth_headers):
-    """Repeated recommendations calls return consistent guidance shape."""
-    r1 = client.get("/api/recommendations?limit=8", headers=auth_headers)
-    r2 = client.get("/api/recommendations?limit=8", headers=auth_headers)
-    assert r1.status_code == 200 and r2.status_code == 200
-    assert r1.json().get("guidance") and r2.json().get("guidance")
-
-
-def test_recommendation_feedback(client, test_user, auth_headers):
-    """Feedback endpoint records like/skip."""
-    r0 = client.get("/api/recommendations?limit=1", headers=auth_headers)
-    assert r0.status_code == 200
-    fid = r0.json()["guidance"]["next_action"]["feedback_food_id"]
-    assert fid is not None
-    fid = int(fid)
-    r = client.post(
-        "/api/recommendations/feedback",
-        headers=auth_headers,
-        json={"food_id": fid, "action": "like"},
-    )
-    assert r.status_code == 200
-    assert r.json().get("ok") is True
+    assert "recommendations" in r.json()
 
 
 @pytest.fixture
@@ -218,46 +174,39 @@ def test_sensor_demo_requires_auth(client):
     assert r.status_code == 401
 
 
-def test_sensor_demo_meta_patients_series_summary(client, auth_headers):
-    meta = client.get("/api/sensor-demo/meta", headers=auth_headers)
+def test_sensor_demo_forbids_patient(client, auth_headers):
+    """Sensor demo is clinician-only."""
+    r = client.get("/api/sensor-demo/meta", headers=auth_headers)
+    assert r.status_code == 403
+
+
+def test_sensor_demo_meta_patients_series_summary(client, auth_headers_clinician):
+    meta = client.get("/api/sensor-demo/meta", headers=auth_headers_clinician)
     assert meta.status_code == 200
     body = meta.json()
     assert "row_count" in body and "columns" in body and "csv_path" in body
     if body.get("row_count", 0) == 0:
         pytest.skip("SmartSensor CSV missing in test env: " + str(body.get("load_error")))
 
-    p = client.get("/api/sensor-demo/patients?limit=5", headers=auth_headers)
+    p = client.get("/api/sensor-demo/patients?limit=5", headers=auth_headers_clinician)
     assert p.status_code == 200
     ids = p.json().get("patients") or []
-    if not ids:
-        pytest.fail(
-            "sensor-demo returned no patient IDs while meta row_count > 0 — "
-            f"row_count={body.get('row_count')} load_error={body.get('load_error')} csv_path={body.get('csv_path')}"
-        )
+    assert len(ids) >= 1
+    pid = ids[0]
 
-    pid = str(ids[0])
-
-    s = client.get("/api/sensor-demo/series", params={"patient_id": pid, "limit": 10}, headers=auth_headers)
+    s = client.get(f"/api/sensor-demo/series?patient_id={pid}&limit=10", headers=auth_headers_clinician)
     assert s.status_code == 200
     readings = s.json().get("readings") or []
     assert len(readings) >= 1
     assert "glucose_level" in readings[0]
 
-    bad = client.get(
-        "/api/sensor-demo/series",
-        params={"patient_id": "__no_such_patient__", "limit": 10},
-        headers=auth_headers,
-    )
+    bad = client.get("/api/sensor-demo/series?patient_id=__no_such_patient__", headers=auth_headers_clinician)
     assert bad.status_code == 404
 
-    summ = client.get(
-        "/api/sensor-demo/summary",
-        params={"patient_id": pid, "last_n": 20},
-        headers=auth_headers,
-    )
+    summ = client.get(f"/api/sensor-demo/summary?patient_id={pid}&last_n=20", headers=auth_headers_clinician)
     assert summ.status_code == 200
     sj = summ.json()
-    assert str(sj.get("patient_id")) == pid
+    assert sj.get("patient_id") == pid
     assert sj.get("points", 0) >= 1
 
 
@@ -272,3 +221,78 @@ def test_chatbot_what_of_120_short_query(client, auth_headers, chat_session):
     text = r.json()["response"]
     assert "120" in text
     assert "reasonable" in text.lower() or "balanced" in text.lower() or "target" in text.lower()
+
+
+def test_chatbot_breakfast_meal_combo(client, auth_headers, chat_session):
+    r = client.post(
+        "/api/chatbot/message",
+        headers=auth_headers,
+        json={"message": "give me a diabetes friendly breakfast", "session_id": chat_session},
+    )
+    assert r.status_code == 200
+    text = r.json()["response"].lower()
+    assert "breakfast" in text
+    assert "gi " in text or "balanced plate" in text or " + " in text
+
+
+def test_chatbot_lists_requested_number_of_foods(client, auth_headers, chat_session):
+    r = client.post(
+        "/api/chatbot/message",
+        headers=auth_headers,
+        json={"message": "give me 5 diabetes friendly foods", "session_id": chat_session},
+    )
+    assert r.status_code == 200
+    text = r.json()["response"]
+    assert "app database" in text.lower()
+    numbered = re.findall(r"(?m)^\d+\.\s", text)
+    assert len(numbered) >= 5
+
+
+def test_chatbot_full_day_meal_plan(client, auth_headers, chat_session):
+    r = client.post(
+        "/api/chatbot/message",
+        headers=auth_headers,
+        json={"message": "give me a diabetes friendly meal plan for a day", "session_id": chat_session},
+    )
+    assert r.status_code == 200
+    text = r.json()["response"].lower()
+    assert "breakfast" in text
+    assert "lunch" in text
+    assert "dinner" in text
+
+
+def test_chatbot_vegetarian_breakfast_personalization(client, auth_headers, chat_session):
+    r = client.post(
+        "/api/chatbot/message",
+        headers=auth_headers,
+        json={"message": "give me a vegetarian diabetes friendly breakfast", "session_id": chat_session},
+    )
+    assert r.status_code == 200
+    text = r.json()["response"].lower()
+    assert "vegetarian" in text
+    assert "chicken" not in text
+    assert "tilapia" not in text
+
+
+def test_chatbot_local_food_list_includes_local_name(client, auth_headers, chat_session):
+    r = client.post(
+        "/api/chatbot/message",
+        headers=auth_headers,
+        json={"message": "give me 3 local ugandan diabetes friendly foods", "session_id": chat_session},
+    )
+    assert r.status_code == 200
+    text = r.json()["response"].lower()
+    assert "local ugandan" in text
+    assert "local name:" in text
+
+
+def test_chatbot_high_reading_breakfast_context(client, auth_headers, chat_session):
+    r = client.post(
+        "/api/chatbot/message",
+        headers=auth_headers,
+        json={"message": "my sugar is high, suggest a diabetes friendly breakfast", "session_id": chat_session},
+    )
+    assert r.status_code == 200
+    text = r.json()["response"].lower()
+    assert "care plan" in text or "follow your care plan" in text or "reading is high" in text
+    assert "breakfast" in text

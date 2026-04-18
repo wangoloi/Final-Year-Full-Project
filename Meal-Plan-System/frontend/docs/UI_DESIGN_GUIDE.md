@@ -1,10 +1,8 @@
 # Glocusense UI Design Guide
 
-System architecture (API modules, ports, embed): [`../../docs/DESIGN_STRUCTURE.md`](../../docs/DESIGN_STRUCTURE.md).
-
 Use this guide when adding or modifying UI components to keep the app balanced, properly sized, and well arranged.
 
-## Design Tokens (`src/styles/index.css`)
+## Design Tokens (index.css)
 
 - **Spacing**: `--page-gap: 1.5rem`, `--card-padding: 1.5rem`, `--header-padding: 1.25rem 1.5rem`
 - **Radius**: `--radius` (0.5rem), `--radius-lg` (0.75rem), `--radius-xl` (1rem)

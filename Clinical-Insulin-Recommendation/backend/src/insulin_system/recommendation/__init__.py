@@ -2,6 +2,7 @@
 Recommendation system (Step 6): prediction engine, clinical recommendations, explanations.
 """
 
+from .prediction_engine import PredictionEngine, PredictionResult
 from .recommendation_generator import (
     ClinicalRecommendation,
     DosageSuggestion,
@@ -10,6 +11,8 @@ from .recommendation_generator import (
 from .explanation_generator import ExplanationOutput, RecommendationExplanationGenerator
 
 __all__ = [
+    "PredictionEngine",
+    "PredictionResult",
     "RecommendationGenerator",
     "ClinicalRecommendation",
     "DosageSuggestion",

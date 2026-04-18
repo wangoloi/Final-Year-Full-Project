@@ -19,7 +19,6 @@ frontend/dist/
 
 # Local data & outputs (keep structure; ignore large/generated if needed)
 outputs/*.db
-docs/notebooks/output/
 *.db-journal
 
 # IDE / OS

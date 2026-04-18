@@ -36,7 +36,7 @@ def _client():
                 }
             ],
             "api_key": config.TYPESENSE_API_KEY,
-            "connection_timeout_seconds": 8,
+            "connection_timeout_seconds": config.TYPESENSE_CONNECTION_TIMEOUT_SECONDS,
         }
     )
 
@@ -56,6 +56,7 @@ def _collection_schema() -> dict:
             {"name": "carbohydrates", "type": "float"},
             {"name": "fat", "type": "float"},
             {"name": "fiber", "type": "float"},
+            {"name": "sugar", "type": "float"},
             {"name": "glycemic_index", "type": "int32", "optional": True},
             {"name": "diabetes_friendly", "type": "bool", "facet": True},
         ],
@@ -93,6 +94,7 @@ def _food_to_document(food: FoodItem) -> dict:
         "carbohydrates": float(food.carbohydrates),
         "fat": float(food.fat),
         "fiber": float(food.fiber),
+        "sugar": float(getattr(food, "sugar", 0.0) or 0.0),
         "diabetes_friendly": bool(food.diabetes_friendly),
     }
     if food.glycemic_index is not None:
@@ -116,6 +118,7 @@ def document_to_api_dict(doc: dict) -> dict:
         "protein": float(doc.get("protein", 0)),
         "fat": float(doc.get("fat", 0)),
         "fiber": float(doc.get("fiber", 0)),
+        "sugar": float(doc.get("sugar", 0)),
     }
 
 
@@ -152,7 +155,28 @@ def sync_foods_index_from_db() -> int:
         db.close()
 
 
-def search_foods_typesense(query: str, limit: int, diabetes_only: bool) -> List[dict]:
+def _build_filter_by(*, diabetes_only: bool, filters: dict | None) -> str | None:
+    parts: list[str] = []
+    if diabetes_only:
+        parts.append("diabetes_friendly:=true")
+    f = filters or {}
+    # Numeric filters; missing optional fields will be excluded by Typesense comparisons.
+    if f.get("carbs_max") is not None:
+        parts.append(f"carbohydrates:<={float(f['carbs_max'])}")
+    if f.get("carbs_min") is not None:
+        parts.append(f"carbohydrates:>={float(f['carbs_min'])}")
+    if f.get("sugar_max") is not None:
+        parts.append(f"sugar:<={float(f['sugar_max'])}")
+    if f.get("sugar_min") is not None:
+        parts.append(f"sugar:>={float(f['sugar_min'])}")
+    if f.get("gi_max") is not None:
+        parts.append(f"glycemic_index:<={int(f['gi_max'])}")
+    if f.get("gi_min") is not None:
+        parts.append(f"glycemic_index:>={int(f['gi_min'])}")
+    return " && ".join(parts) if parts else None
+
+
+def search_foods_typesense(query: str, limit: int, diabetes_only: bool, *, filters: dict | None = None) -> List[dict]:
     """Search foods via Typesense; returns API-shaped dicts."""
     q = (query or "").strip()
     if not q:
@@ -160,14 +184,46 @@ def search_foods_typesense(query: str, limit: int, diabetes_only: bool) -> List[
     ensure_foods_collection()
     client = _client()
     coll = client.collections[config.TYPESENSE_FOODS_COLLECTION]
+    # Avoid "type anything → lots of results" by making very short queries strict.
+    short = len(q) < 3
     params: dict[str, Any] = {
         "q": q,
         "query_by": "name,local_name,description,category",
         "per_page": limit,
-        "num_typos": 2,
+        "num_typos": 0 if short else 2,
+        "prioritize_exact_match": True,
     }
-    if diabetes_only:
-        params["filter_by"] = "diabetes_friendly:=true"
+    fb = _build_filter_by(diabetes_only=diabetes_only, filters=filters)
+    if fb:
+        params["filter_by"] = fb
+    res = coll.documents.search(params)
+    hits = res.get("hits") or []
+    out: List[dict] = []
+    for h in hits:
+        doc = h.get("document") or {}
+        out.append(document_to_api_dict(doc))
+    return out
+
+
+def suggest_foods_typesense(prefix: str, limit: int, diabetes_only: bool) -> List[dict]:
+    """Autocomplete-like suggestions (name/local_name) for a prefix."""
+    q = (prefix or "").strip()
+    if not q:
+        return []
+    ensure_foods_collection()
+    client = _client()
+    coll = client.collections[config.TYPESENSE_FOODS_COLLECTION]
+    params: dict[str, Any] = {
+        "q": q,
+        "query_by": "name,local_name",
+        "per_page": limit,
+        "num_typos": 0,
+        "prefix": "true",
+        "prioritize_exact_match": True,
+    }
+    fb = _build_filter_by(diabetes_only=diabetes_only, filters=None)
+    if fb:
+        params["filter_by"] = fb
     res = coll.documents.search(params)
     hits = res.get("hits") or []
     out: List[dict] = []

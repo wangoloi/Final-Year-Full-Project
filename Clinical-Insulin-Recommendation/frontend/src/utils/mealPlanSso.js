@@ -1,4 +1,4 @@
-import { getMealPlanApiBaseUrl } from '../constants'
+import { getMealPlanOrigin } from '../constants'
 
 const SYNTH_EMAIL_PREFIX = 'glucosense_meal_sso_email'
 
@@ -29,17 +29,13 @@ export function getStableSyntheticSsoEmail(role, displayName) {
 
 /**
  * Ask Meal Plan API for a JWT for this GlucoSense user (no second password).
- * Dev: same-origin `/api/auth/...` is proxied by Vite to the Meal API; prod: use `VITE_MEAL_PLAN_API_URL` if needed.
+ * Uses GlucoSense same-origin POST /api/meal-plan/sso (Vite proxies /api → :8000); the clinical API
+ * forwards to the Meal Plan API and adds the embed key server-side.
  */
 export async function provisionMealPlanSession({ email, displayName, role }) {
-  // SSO is brokered by the Clinical API so the embed key is never shipped to the browser bundle.
-  // Dev: same-origin `/api/*` is proxied by Vite to the Clinical API; prod: same origin behind your reverse proxy.
-  const apiBase = getMealPlanApiBaseUrl()
-  const path = '/api/meal-plan/sso'
-  const url = apiBase ? `${apiBase.replace(/\/$/, '')}${path}` : path
   let res
   try {
-    res = await fetch(url, {
+    res = await fetch('/api/meal-plan/sso', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -50,12 +46,10 @@ export async function provisionMealPlanSession({ email, displayName, role }) {
         role: role === 'clinician' ? 'clinician' : 'patient',
       }),
     })
-  } catch (e) {
+  } catch (err) {
     const hint =
-      import.meta.env.DEV && e instanceof TypeError
-        ? ' Start the Clinical API on port 8000 (and Meal API on 8001). If using the integrated script, run scripts/start-integrated.ps1.'
-        : ''
-    throw new Error(`Meal Plan SSO: ${e?.message || 'network error'}.${hint}`)
+      'Start GlucoSense API on :8000 and Meal Plan API on :8001. Set MEAL_PLAN_API_URL on the GlucoSense backend if the meal API uses another host/port.'
+    throw new Error(`Meal Plan SSO: ${err?.message || err}. ${hint}`)
   }
   const text = await res.text()
   let data = {}
@@ -76,22 +70,21 @@ export async function provisionMealPlanSession({ email, displayName, role }) {
 
 export function postMealPlanTokenToIframe(iframeWindow, token, targetOrigin) {
   if (!iframeWindow || token == null) return
-  const target = targetOrigin || '*'
+  const target = targetOrigin || getMealPlanOrigin()
   iframeWindow.postMessage({ type: 'GLUCOSENSE_MEAL_PLAN_TOKEN', token }, target)
 }
 
 /** Iframe can mount its message listener slightly after load; repeat delivery briefly. */
 export function postMealPlanTokenToIframeWithRetries(iframeWindow, token, targetOrigin) {
   if (!iframeWindow || token == null) return
-  const target = targetOrigin || '*'
-  postMealPlanTokenToIframe(iframeWindow, token, target)
-  window.setTimeout(() => postMealPlanTokenToIframe(iframeWindow, token, target), 450)
-  window.setTimeout(() => postMealPlanTokenToIframe(iframeWindow, token, target), 1200)
-  window.setTimeout(() => postMealPlanTokenToIframe(iframeWindow, token, target), 2800)
+  postMealPlanTokenToIframe(iframeWindow, token, targetOrigin)
+  window.setTimeout(() => postMealPlanTokenToIframe(iframeWindow, token, targetOrigin), 450)
+  window.setTimeout(() => postMealPlanTokenToIframe(iframeWindow, token, targetOrigin), 1200)
+  window.setTimeout(() => postMealPlanTokenToIframe(iframeWindow, token, targetOrigin), 2800)
 }
 
 export function postMealPlanLogoutToIframe(iframeWindow, targetOrigin) {
   if (!iframeWindow) return
-  const target = targetOrigin || '*'
+  const target = targetOrigin || getMealPlanOrigin()
   iframeWindow.postMessage({ type: 'GLUCOSENSE_MEAL_PLAN_LOGOUT' }, target)
 }

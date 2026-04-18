@@ -1,6 +1,6 @@
 # GlucoSense — How to Run
 
-This guide explains how to run the GlucoSense **clinical insulin training** pipeline, API, and frontend. For **Meal Plan + integrated ports**, see the workspace **[SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md)** and root **[README.md](../../../README.md)**.
+This guide explains how to run the GlucoSense pipeline, API, and frontend. For **Meal Plan + integrated ports + Smart Sensor ML**, see the workspace **[SYSTEM_PIPELINE.md](../../../SYSTEM_PIPELINE.md)** and root **[README.md](../../../README.md)**.
 
 ## Prerequisites
 
@@ -18,27 +18,31 @@ cd frontend && npm install && cd ..
 
 ---
 
-## 1. Run the clinical insulin training pipeline
+## 1. Run the Full ML Pipeline
 
-Train the **dose regression** pipeline (0–10 IU) and write artifacts under **`outputs/clinical_insulin_pipeline/latest/`**:
-
-```bash
-python run_clinical_insulin_pipeline.py
-# delegates to: scripts/pipeline/run_clinical_insulin_pipeline.py
-```
-
-**Faster try-out** (skips learning-curve and SHAP):
+Train models and save the best one for inference:
 
 ```bash
-python run_clinical_insulin_pipeline.py --skip-learning-curve --skip-shap
+python run_pipeline.py
+# or: python scripts/pipeline/run_pipeline.py
 ```
 
-Common options (see `python run_clinical_insulin_pipeline.py --help`):
+**Note:** Full pipeline takes ~5–10 minutes (all models). For quick testing, use:
+`python run_pipeline.py --no-eda --models gradient_boosting` (~2 min).
 
-- `--data PATH` — CSV path (default: `data/SmartSensor_DiabetesMonitoring.csv`)
-- `--out-dir` — Under `outputs/clinical_insulin_pipeline/` (default run uses `latest/`)
+Options:
 
-**Output:** leaderboard CSV, `insulin_regression_bundle.joblib`, plots, `run_metadata.json`. The FastAPI app may load a **separate** legacy bundle from **`outputs/best_model/`** when present; see **`outputs/README.md`**.
+- `--data PATH` — Path to CSV (default: `data/SmartSensor_DiabetesMonitoring.csv`)
+- `--no-eda` — Skip EDA plots
+- `--models NAME1 NAME2` — Train only specific models (e.g. `gradient_boosting random_forest`)
+- `--out-dir DIR` — Evaluation output (default: `outputs/evaluation`)
+- `--best-model-dir DIR` — Where to save the best model (default: `outputs/best_model`)
+- `--random-split` — Use random stratified split instead of temporal
+
+Output:
+
+- `outputs/best_model/inference_bundle.joblib` — Model used by the API
+- `outputs/evaluation/` — Metrics, confusion matrices, ROC curves, etc.
 
 ---
 
@@ -127,7 +131,7 @@ Edit these files to change thresholds without code changes. See `docs/UGANDA_T1D
 
 | Issue | Solution |
 |-------|----------|
-| `No saved model found at outputs/best_model/inference_bundle.joblib` | Add a compatible `inference_bundle.joblib` under `outputs/best_model/`, or expect stub/503 on ML-heavy routes until wired |
+| `No saved model found at outputs/best_model/inference_bundle.joblib` | Run `python run_pipeline.py` first |
 | `Data file not found` | Ensure `data/SmartSensor_DiabetesMonitoring.csv` exists |
 | Frontend can't reach API | Start backend first, then frontend. Or use `.\scripts\windows\run_dev.ps1` for correct order. |
 | `ECONNREFUSED` proxy errors | Backend wasn't ready when frontend started. Use `scripts\windows\run_dev.ps1` or start backend first. |
@@ -135,7 +139,19 @@ Edit these files to change thresholds without code changes. See `docs/UGANDA_T1D
 
 ---
 
-## Alternative scripts
+## Alternative Scripts
 
-- **`scripts/dev/quick_clinical_check.py`** — Quick RF smoke test on the default CSV.
-- **`pytest`** — From repo root: `pytest tests/` (includes `test_clinical_insulin_pipeline.py` smoke).
+- `run_evaluation.py` — Same as `run_pipeline.py` (full evaluation + save best model)
+- `run_development.py` — Standalone development pipeline (different bundle format; not used by API)
+
+---
+
+## 6. System Interaction Test (CDS & User Support)
+
+After starting the API, run scenarios to validate CDS Safety Engine and user/design-group support:
+
+```bash
+python scripts/test_system_interaction.py --base-url http://localhost:8000
+```
+
+Tests: hypo rejection, CGM error handling, high ketones, target range, ICR/ISF meal+correction.
