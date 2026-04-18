@@ -9,7 +9,7 @@
     "dev:api": "node --max-old-space-size=1536 ./scripts/start-api.cjs",
     "dev:fast": "node --max-old-space-size=1536 ./node_modules/concurrently/dist/bin/concurrently.js -k -n api,web -c blue,cyan \"npm run dev:api\" \"npm run dev:vite\"",
     "dev:full": "node --max-old-space-size=1536 ./node_modules/concurrently/dist/bin/concurrently.js -k -n api,web -c blue,cyan \"npm run dev:api\" \"node --max-old-space-size=1536 ./scripts/start-web.cjs\"",
-    "start": "npm run dev:fast",
+    "start": "npm run dev:full",
     "start:full": "npm run dev:full",
     "build": "vite build",
     "preview": "vite preview"

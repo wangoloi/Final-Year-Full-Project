@@ -178,13 +178,14 @@ export function ClinicalProvider({ children }) {
 
   useEffect(() => {
     if (!isSignedIn || userRole !== 'clinician') return
-    const load = async () => {
-      await syncReportsDownloadNotification()
-      await fetchNotifications()
-      fetchPatientContext()
-      fetchAlertsPreview()
-    }
-    load()
+    // Run in parallel: previously syncReportsDownloadNotification (records + writes) blocked
+    // notifications/context/alerts and made the workspace feel "stuck" after login.
+    void Promise.all([
+      syncReportsDownloadNotification(),
+      fetchNotifications(),
+      fetchPatientContext(),
+      fetchAlertsPreview(),
+    ])
   }, [isSignedIn, userRole, fetchPatientContext, fetchNotifications, fetchAlertsPreview, syncReportsDownloadNotification])
 
   const updatePatient = useCallback((name, condition) => {

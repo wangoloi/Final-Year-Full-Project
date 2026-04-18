@@ -126,7 +126,13 @@ else:
 
     @app.middleware("http")
     async def _lazy_load_routes(request: Request, call_next):
-        # Defer importing routes until first request so uvicorn binds quickly (Windows ML stack can be very slow to import).
+        # Defer importing routes until first *real* API request so uvicorn binds quickly.
+        # IMPORTANT: do not import heavy routes for liveness/docs — otherwise the first
+        # GET /api/health/live (Vite ApiGate, wait-on) pays the full import cost and the UI
+        # appears "stuck loading" for tens of seconds on Windows.
+        path = request.url.path
+        if path.startswith("/api/health") or path in ("/docs", "/redoc", "/openapi.json"):
+            return await call_next(request)
         _include_heavy_routes()
         return await call_next(request)
 

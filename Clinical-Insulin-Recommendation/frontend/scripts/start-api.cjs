@@ -154,7 +154,19 @@ if (process.platform === 'win32') {
   reload = rEnv !== '0' && rEnv !== 'false'
 }
 const uvicornArgs = ['-m', 'uvicorn', 'app:app']
-if (reload) uvicornArgs.push('--reload')
+if (reload) {
+  uvicornArgs.push('--reload')
+  // Narrow reload scope (especially on Windows) so file watching is cheaper and the reloader
+  // is less likely to fight the main process on the same port.
+  const backendSrc = path.join(repoRoot, 'backend', 'src')
+  if (fs.existsSync(backendSrc)) {
+    uvicornArgs.push('--reload-dir', backendSrc)
+  }
+  const backendDir = path.join(repoRoot, 'backend')
+  if (fs.existsSync(backendDir)) {
+    uvicornArgs.push('--reload-dir', backendDir)
+  }
+}
 uvicornArgs.push('--host', '127.0.0.1', '--port', String(API_PORT))
 
 freeListenPort(API_PORT)

@@ -6,6 +6,7 @@ Input validation and structured JSON responses with clinical metadata.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import uuid
@@ -118,22 +119,33 @@ def _record_glucose_trend(body: Dict[str, Any], patient_id: Optional[int] = None
         logger.warning("Failed to record glucose for trend: %s", e)
 
 
+# Local integrated stack (scripts/start-integrated.ps1): Meal Plan API on 8001.
+# Meal-Plan-System uses the same dev default embed key — keep these aligned.
+_DEV_MEAL_PLAN_API_URL = "http://127.0.0.1:8001"
+_DEV_GLUCOSENSE_EMBED_KEY = "dev-embed-local-only"
+
+
 def _meal_plan_base_url() -> str:
     """
     Internal base URL for the Meal Plan API (no trailing slash).
-    In Docker Compose this should be the service name, e.g. http://meal-api:8001.
+    In Docker Compose set MEAL_PLAN_API_URL to the service name, e.g. http://meal-api:8001.
     """
     u = os.environ.get("MEAL_PLAN_API_URL") or os.environ.get("MEAL_PLAN_API_INTERNAL_URL") or ""
     u = str(u).strip().rstrip("/")
     if not u:
-        raise HTTPException(status_code=500, detail="Meal Plan SSO not configured (missing MEAL_PLAN_API_URL).")
+        logger.warning(
+            "MEAL_PLAN_API_URL / MEAL_PLAN_API_INTERNAL_URL not set; using dev default %s",
+            _DEV_MEAL_PLAN_API_URL,
+        )
+        u = _DEV_MEAL_PLAN_API_URL
     return u
 
 
 def _meal_plan_embed_key() -> str:
     key = (os.environ.get("GLUCOSENSE_EMBED_KEY") or "").strip()
     if not key:
-        raise HTTPException(status_code=500, detail="Meal Plan SSO not configured (missing GLUCOSENSE_EMBED_KEY).")
+        logger.warning("GLUCOSENSE_EMBED_KEY not set; using dev default (must match Meal Plan API config)")
+        key = _DEV_GLUCOSENSE_EMBED_KEY
     return key
 
 
@@ -173,8 +185,33 @@ def meal_plan_sso(body: Dict[str, Any]):
     except Exception:
         data = {}
     if not r.ok:
-        detail = data.get("detail") if isinstance(data, dict) else None
-        raise HTTPException(status_code=r.status_code, detail=detail or "Meal Plan SSO failed")
+        raw_detail = data.get("detail") if isinstance(data, dict) else None
+        if isinstance(raw_detail, (list, dict)):
+            try:
+                detail_str = json.dumps(raw_detail)[:800]
+            except Exception:
+                detail_str = str(raw_detail)[:800]
+        else:
+            detail_str = (str(raw_detail) if raw_detail is not None else "") or (r.text or "")[:800]
+        logger.error(
+            "Meal Plan SSO upstream HTTP %s from %s: %s",
+            r.status_code,
+            url,
+            detail_str[:500] if detail_str else "(empty body)",
+        )
+        upstream = int(r.status_code)
+        # Do not surface upstream 5xx as 500 from GlucoSense (confuses the React app); 502 = bad gateway.
+        if upstream >= 500:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Meal Plan API returned {upstream}. "
+                    "Ensure the Meal Plan API is running on port 8001 (npm run integrated window 1). "
+                    f"Upstream: {detail_str or 'no detail'}"
+                )[:2000],
+            )
+        raise HTTPException(status_code=upstream, detail=(detail_str or "Meal Plan SSO failed")[:2000])
+
     token = data.get("token") if isinstance(data, dict) else None
     if not token:
         raise HTTPException(status_code=502, detail="Meal Plan SSO returned no token")

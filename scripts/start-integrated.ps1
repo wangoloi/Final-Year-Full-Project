@@ -37,16 +37,14 @@ if (-not (Test-Path -LiteralPath (Join-Path $MealBackend 'run.py'))) {
   exit 1
 }
 
-Write-Step "Freeing ports 8000, 8001, 5173, 5174, 5175 (best effort; times out so VS Code is not stuck)"
-$killPortsJob = Start-Job -ScriptBlock {
-  foreach ($port in 8000, 8001, 5173, 5174, 5175) {
-    Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
-      ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-  }
+Write-Step "Freeing ports 8000, 8001, 5173, 5174, 5175 (netstat + taskkill; avoids Get-NetTCPConnection hangs on some Windows builds)"
+$freePortsScript = Join-Path $PSScriptRoot 'free-dev-ports.ps1'
+if (Test-Path -LiteralPath $freePortsScript) {
+  & $freePortsScript
 }
-$null = Wait-Job $killPortsJob -Timeout 6
-Stop-Job $killPortsJob -ErrorAction SilentlyContinue
-Remove-Job $killPortsJob -Force -ErrorAction SilentlyContinue
+else {
+  Write-Warning "Port-free script not found: $freePortsScript - you may need to close old dev servers manually."
+}
 Start-Sleep -Seconds 1
 
 $envExample = Join-Path $GlucoFront '.env.example'
@@ -88,11 +86,13 @@ python run.py
 
 Start-Sleep -Seconds 3
 
-Write-Step "Window 2/3: GlucoSense - clinical API :8000 + MAIN PORTAL (npm run start = dev:fast, no wait-on)"
+Write-Step "Window 2/3: GlucoSense - clinical API :8000 + MAIN PORTAL (npm run start = dev:full; Vite waits for API so no proxy spam)"
 Start-StackWindow -Title 'GlucoSense: MAIN APP (portal + API)' -WorkingDir $GlucoFront -CommandLine @'
 # Avoid OOM when multiple Node/Vite processes run (do not set 6GB+ heap here).
 $env:NODE_OPTIONS = '--max-old-space-size=2048'
-$env:GLUCOSENSE_UVICORN_RELOAD = '0'
+# Pick up backend Python changes without manually killing uvicorn (scoped --reload-dir in start-api.cjs).
+# If you hit Windows bind error 10048, set GLUCOSENSE_UVICORN_RELOAD=0 for this window only.
+$env:GLUCOSENSE_UVICORN_RELOAD = '1'
 npm run start
 '@
 
@@ -111,8 +111,8 @@ Write-Host "  1) Wait for Meal Plan API: Uvicorn on :8001" -ForegroundColor Whit
 Write-Host "  2) Wait for GlucoSense: Uvicorn :8000 AND Vite ready (usually :5173)" -ForegroundColor Yellow
 Write-Host "  3) Wait for Meal Plan Vite on :5175" -ForegroundColor White
 Write-Host ""
-Write-Host "  >>> OPEN THIS IN YOUR BROWSER (main app, not meal-only):" -ForegroundColor Yellow
-Write-Host "      http://localhost:5173   (or :5174 if GlucoSense says port in use)" -ForegroundColor Cyan
+Write-Host '  OPEN THIS IN YOUR BROWSER (main app, not meal-only):' -ForegroundColor Yellow
+Write-Host '      http://localhost:5173   (or :5174 if GlucoSense says port in use)' -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  http://localhost:5175 is ONLY the meal app for the iframe - do not use it as your main entry." -ForegroundColor DarkGray
 Write-Host ""
